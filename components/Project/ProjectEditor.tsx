@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import { Project } from '../../types';
-import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls, DragControls } from 'framer-motion';
 import { 
   LayoutGrid, 
   FileJson, 
@@ -47,20 +47,20 @@ const ProjectCard = ({
   onSelect, 
   onDelete, 
   ui,
-  isDragging
+  isDragging,
+  dragControls
 }: { 
   project: Project; 
   onSelect: () => void; 
   onDelete: (id: string) => void; 
   ui: any;
   isDragging?: boolean;
+  dragControls: DragControls;
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
-  const controls = useDragControls();
 
   return (
-    <motion.div 
-      layout
+    <div 
       className={`group relative bg-obsidian-surface border rounded-xl overflow-hidden cursor-pointer shadow-lg transition-all h-full ${
         isDragging ? 'z-50 border-neon-cyan shadow-[0_20px_50px_rgba(0,0,0,0.5)] scale-105 opacity-90' : 'z-0 border-obsidian-border hover:border-neon-cyan/50'
       }`}
@@ -80,11 +80,16 @@ const ProjectCard = ({
           alt={project.title}
         />
         
+        {/* Drag handle specifically for reordering */}
         <div 
-          onPointerDown={(e) => controls.start(e)}
-          className="absolute top-2 left-2 p-1.5 bg-black/60 text-white/70 rounded-lg opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-grab active:cursor-grabbing border border-white/10"
+          onPointerDown={(e) => {
+            // Stop propagation and prevent default to isolate drag interaction from card clicks and container scroll
+            e.stopPropagation();
+            dragControls.start(e);
+          }}
+          className="absolute top-2 left-2 p-2 bg-black/70 text-white/90 rounded-lg opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-grab active:cursor-grabbing border border-white/10 touch-none"
         >
-           <GripVertical size={14} />
+           <GripVertical size={16} />
         </div>
 
         {project.featured && (
@@ -112,6 +117,47 @@ const ProjectCard = ({
         <h3 className="text-sm font-bold text-white truncate">{project.title}</h3>
         <p className="text-[10px] text-obsidian-textMuted uppercase font-mono mt-1">{project.category}</p>
       </div>
+    </div>
+  );
+};
+
+// Internal component to handle drag controls per item
+const DraggableProjectWrapper = ({ 
+  project, 
+  draggingId, 
+  setDraggingId, 
+  handleDragUpdate, 
+  onSelect, 
+  onDelete, 
+  ui 
+}: any) => {
+  const dragControls = useDragControls();
+  
+  return (
+    <motion.div
+      key={project.id}
+      layout
+      drag
+      dragControls={dragControls}
+      dragListener={false} // CRITICAL: Disable default drag start on click/touch to fix mobile scroll conflict
+      dragSnapToOrigin
+      onDragStart={() => setDraggingId(project.id)}
+      onDragEnd={() => setDraggingId(null)}
+      onDrag={(e, info) => handleDragUpdate(project.id, info)}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      transition={{ type: "spring", stiffness: 400, damping: 40 }}
+      style={{ touchAction: 'pan-y' }} // Allow vertical scroll on the wrapper itself
+    >
+      <ProjectCard 
+        project={project} 
+        ui={ui} 
+        isDragging={draggingId === project.id}
+        dragControls={dragControls}
+        onSelect={onSelect} 
+        onDelete={onDelete} 
+      />
     </motion.div>
   );
 };
@@ -278,7 +324,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
               <FolderPlus className="text-neon-cyan shrink-0" size={20} /> Visual Archive
             </h2>
             <p className="text-[9px] md:text-[10px] text-obsidian-textMuted font-mono mt-1 uppercase tracking-widest leading-relaxed">
-              <Sparkles size={10} className="inline mr-1 text-neon-lime" /> Swap items live. Sync on drop.
+              <Sparkles size={10} className="inline mr-1 text-neon-lime" /> Use the grip handle to reorder live.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -323,27 +369,16 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
           >
             <AnimatePresence mode="popLayout">
               {filtered.map((p) => (
-                <motion.div
+                <DraggableProjectWrapper 
                   key={p.id}
-                  layout
-                  drag
-                  dragSnapToOrigin
-                  onDragStart={() => setDraggingId(p.id)}
-                  onDragEnd={() => setDraggingId(null)}
-                  onDrag={(e, info) => handleDragUpdate(p.id, info)}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 40 }}
-                >
-                  <ProjectCard 
-                    project={p} 
-                    ui={ui} 
-                    isDragging={draggingId === p.id}
-                    onSelect={() => { setSelectedId(p.id); setViewMode('edit'); }} 
-                    onDelete={onDelete} 
-                  />
-                </motion.div>
+                  project={p}
+                  draggingId={draggingId}
+                  setDraggingId={setDraggingId}
+                  handleDragUpdate={handleDragUpdate}
+                  onSelect={() => { setSelectedId(p.id); setViewMode('edit'); }}
+                  onDelete={onDelete}
+                  ui={ui}
+                />
               ))}
             </AnimatePresence>
           </div>

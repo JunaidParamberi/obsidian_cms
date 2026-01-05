@@ -37,7 +37,11 @@ interface UIContextType {
 export const UIContext = createContext<UIContextType | null>(null);
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Initialize authentication state from localStorage
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('obsidian_auth_session') === 'active';
+  });
+  
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   
   const [projects, setProjects] = useState<Project[]>([]);
@@ -60,6 +64,15 @@ const App: React.FC = () => {
     type: 'danger' | 'info';
     onConfirm: () => void; 
   } | null>(null);
+
+  // Sync auth state to localStorage whenever it changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      localStorage.setItem('obsidian_auth_session', 'active');
+    } else {
+      localStorage.removeItem('obsidian_auth_session');
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -227,7 +240,10 @@ const App: React.FC = () => {
       title: "Confirm Sign Out",
       message: "Are you sure you want to end your current session?",
       type: 'info',
-      onConfirm: () => setIsAuthenticated(false)
+      onConfirm: () => {
+        setIsAuthenticated(false);
+        localStorage.removeItem('obsidian_auth_session');
+      }
     });
   };
 
