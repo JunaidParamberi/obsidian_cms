@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import { 
   LayoutDashboard, 
   FolderKanban, 
@@ -10,16 +11,30 @@ import {
   Bell,
   Loader2,
   Database,
-  LogOut
+  LogOut,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  Users,
+  UserCircle,
+  RefreshCw
 } from 'lucide-react';
-import { Project, Experience, ViewState } from './types';
-import { api } from './services/firebaseService'; // REAL FIREBASE
+import { Project, Experience, Client, ViewState, Overview } from './types';
+import { api } from './services/firebaseService';
 import DashboardOverview from './components/Dashboard/Overview';
 import ProjectEditor from './components/Project/ProjectEditor';
 import ExperienceManager from './components/Experience/ExperienceManager';
+import ClientsManager from './components/Client/ClientsManager';
+import OverviewEditor from './components/Profile/OverviewEditor';
 import DeployStatus from './components/Deploy/DeployStatus';
 import Login from './components/Auth/Login';
 import { AnimatePresence, motion } from 'framer-motion';
+
+interface UIContextType {
+  confirm: (options: { title: string; message: string; onConfirm: () => void; type?: 'danger' | 'info' }) => void;
+  notify: (msg: string, type?: 'success' | 'loading' | 'error') => void;
+}
+export const UIContext = createContext<UIContextType | null>(null);
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -27,11 +42,24 @@ const App: React.FC = () => {
   
   const [projects, setProjects] = useState<Project[]>([]);
   const [experience, setExperience] = useState<Experience[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [overview, setOverview] = useState<Overview | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notification, setNotification] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{msg: string, type: 'success' | 'loading' | 'error'} | null>(null);
+
+  const reorderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSyncedProjectsRef = useRef<Project[]>([]);
+
+  const [modalConfig, setModalConfig] = useState<{ 
+    isOpen: boolean; 
+    title: string; 
+    message: string; 
+    type: 'danger' | 'info';
+    onConfirm: () => void; 
+  } | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -39,15 +67,20 @@ const App: React.FC = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [fetchedProjects, fetchedExperience] = await Promise.all([
+        const [fetchedProjects, fetchedExperience, fetchedClients, fetchedOverview] = await Promise.all([
           api.getProjects(),
-          api.getExperience()
+          api.getExperience(),
+          api.getClients(),
+          api.getOverview()
         ]);
         setProjects(fetchedProjects);
+        lastSyncedProjectsRef.current = JSON.parse(JSON.stringify(fetchedProjects));
         setExperience(fetchedExperience);
+        setClients(fetchedClients);
+        setOverview(fetchedOverview);
       } catch (error) {
         console.error("Firebase connection error:", error);
-        showNotification("Firebase Sync Error");
+        showNotification("Firebase Sync Error", 'error');
       } finally {
         setIsLoading(false);
       }
@@ -55,18 +88,41 @@ const App: React.FC = () => {
     fetchData();
   }, [isAuthenticated]);
 
-  const showNotification = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
+  const showNotification = useCallback((msg: string, type: 'success' | 'loading' | 'error' = 'success') => {
+    setNotification({ msg, type });
+    if (type !== 'loading') {
+      setTimeout(() => setNotification(null), 3000);
+    }
+  }, []);
+
+  const triggerConfirm = useCallback((options: { title: string; message: string; onConfirm: () => void; type?: 'danger' | 'info' }) => {
+    setModalConfig({
+      isOpen: true,
+      title: options.title,
+      message: options.message,
+      type: options.type || 'danger',
+      onConfirm: options.onConfirm
+    });
+  }, []);
+
+  const handleSaveOverview = async (updatedOverview: Overview) => {
+    try {
+      setOverview(updatedOverview);
+      await api.saveOverview(updatedOverview);
+      showNotification("Profile Cloud Sync Complete");
+    } catch (e) {
+      showNotification("Profile Sync Failed", 'error');
+    }
   };
 
   const handleCreateProject = async (newProject: Project) => {
     try {
-      await api.createProject(newProject);
-      setProjects(prev => [newProject, ...prev]);
+      const created = await api.createProject(newProject);
+      setProjects(prev => [created, ...prev]);
+      lastSyncedProjectsRef.current = [created, ...lastSyncedProjectsRef.current];
       showNotification(`"${newProject.title}" Sync Complete`);
     } catch (e) {
-      showNotification("Firebase Write Error");
+      showNotification("Firebase Write Error", 'error');
     }
   };
 
@@ -76,21 +132,52 @@ const App: React.FC = () => {
       await api.updateProject(updatedProject);
       showNotification("Database Updated Successfully");
     } catch (e) {
-      showNotification("Sync Failed");
+      showNotification("Sync Failed", 'error');
     }
   };
 
-  const handleDeleteProject = async (projectId: string) => {
-    const previousProjects = [...projects];
-    setProjects(prev => prev.filter(p => p.id !== projectId));
-    showNotification("Project Removed");
+  const handleReorderProjects = (reorderedProjects: Project[]) => {
+    // 1. Immediate local update for "live" feel
+    setProjects(reorderedProjects);
+    
+    if (reorderTimeoutRef.current) {
+      clearTimeout(reorderTimeoutRef.current);
+    }
 
+    // 2. Debounce the Firestore write to avoid rate limits
+    reorderTimeoutRef.current = setTimeout(async () => {
+      showNotification("Syncing sequence to cloud...", 'loading');
+
+      // Create update payload with new order indexes
+      const updates = reorderedProjects.map((p, index) => ({
+        id: p.id,
+        order: index
+      }));
+
+      try {
+        // 3. Persistent write to Firebase
+        await api.updateProjectOrders(updates);
+        lastSyncedProjectsRef.current = JSON.parse(JSON.stringify(reorderedProjects));
+        
+        // 4. Success Confirmation
+        setNotification(null); // Clear loading
+        setTimeout(() => showNotification("Cloud Database Updated Successfully"), 100);
+      } catch (e) {
+        console.error("Reorder persistence failed:", e);
+        showNotification("Cloud Reorder Sync Failed", 'error');
+      }
+    }, 2000); 
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    const snapshot = [...projects];
+    setProjects(prev => prev.filter(p => p.id !== projectId));
     try {
       await api.deleteProject(projectId);
-    } catch (e) {
-      console.error("Firestore delete error:", e);
-      setProjects(previousProjects);
-      showNotification("Delete Failed - Server Busy");
+      showNotification("Cloud synchronization successful");
+    } catch (e: any) {
+      setProjects(snapshot);
+      showNotification(`Delete Failed: ${e.message || 'Permissions Error'}`, 'error');
     }
   };
 
@@ -98,10 +185,66 @@ const App: React.FC = () => {
     try {
       setExperience(updatedExp);
       await api.saveExperience(updatedExp);
-      showNotification("Timeline Saved to Cloud");
+      showNotification("Timeline Sync Successful");
     } catch (e) {
-      showNotification("Timeline Sync Failed");
+      showNotification("Timeline Sync Failed", 'error');
     }
+  };
+
+  const handleDeleteExperience = async (experienceId: string) => {
+    const snapshot = [...experience];
+    setExperience(prev => prev.filter(e => e.id !== experienceId));
+    try {
+      await api.deleteExperience(experienceId);
+      showNotification("Milestone removed from cloud");
+    } catch (e: any) {
+      setExperience(snapshot);
+      showNotification(`Delete Failed: ${e.message}`, 'error');
+    }
+  };
+
+  const handleSaveClient = async (updatedClient: Client) => {
+    try {
+      setClients(prev => {
+        const exists = prev.find(c => c.id === updatedClient.id);
+        if (exists) return prev.map(c => c.id === updatedClient.id ? updatedClient : c);
+        return [updatedClient, ...prev];
+      });
+      await api.saveClient(updatedClient);
+      showNotification("Client Partnership Updated");
+    } catch (e) {
+      showNotification("Client Sync Error", 'error');
+    }
+  };
+
+  const handleDeleteClient = async (clientId: string) => {
+    const snapshot = [...clients];
+    setClients(prev => prev.filter(c => c.id !== clientId));
+    try {
+      await api.deleteClient(clientId);
+      showNotification("Partner record purged");
+    } catch (e: any) {
+      setClients(snapshot);
+      showNotification("Delete Permission Denied", 'error');
+    }
+  };
+
+  const handleLogout = () => {
+    triggerConfirm({
+      title: "Confirm Sign Out",
+      message: "Are you sure you want to end your current session?",
+      type: 'info',
+      onConfirm: () => setIsAuthenticated(false)
+    });
+  };
+
+  const handleDeployRequest = () => {
+    triggerConfirm({
+      title: "Trigger Production Build",
+      message: "This will push your current database state to the live production environment. Proceed?",
+      type: 'info',
+      onConfirm: () => setIsDeploying(true)
+    });
   };
 
   const NavItem = ({ view, icon: Icon, label }: { view: ViewState; icon: any; label: string }) => (
@@ -128,126 +271,209 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-obsidian-bg text-obsidian-text font-sans selection:bg-neon-cyan selection:text-black cursor-auto">
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-obsidian-bg border-r border-obsidian-border transform transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full p-4">
-          <div className="flex items-center gap-3 px-2 mb-10 mt-2">
-            <div className="p-2 rounded bg-obsidian-surface border border-obsidian-border relative overflow-hidden">
-               <div className="absolute inset-0 bg-iridescent opacity-10" />
-               <div className="w-6 h-6 border-2 border-neon-cyan rounded-sm relative">
-                  <div className="absolute top-1 right-1 w-2 h-2 bg-neon-purple rounded-full animate-pulse" />
-               </div>
+    <UIContext.Provider value={{ confirm: triggerConfirm, notify: showNotification }}>
+      <div className="flex h-screen overflow-hidden bg-obsidian-bg text-obsidian-text font-sans">
+        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-obsidian-bg border-r border-obsidian-border transform transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="flex flex-col h-full p-4">
+            <div className="flex items-center gap-3 px-2 mb-10 mt-2">
+              <div className="p-2 rounded bg-obsidian-surface border border-obsidian-border relative overflow-hidden">
+                <div className="absolute inset-0 bg-iridescent opacity-10" />
+                <div className="w-6 h-6 border-2 border-neon-cyan rounded-sm relative">
+                    <div className="absolute top-1 right-1 w-2 h-2 bg-neon-purple rounded-full animate-pulse" />
+                </div>
+              </div>
+              <div>
+                <h1 className="font-bold text-neon-ice text-lg leading-tight">Junaid.CMS</h1>
+                <p className="text-xs text-obsidian-textMuted font-mono">Status: Secure</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-bold text-neon-ice text-lg leading-tight">Junaid.CMS</h1>
-              <p className="text-xs text-obsidian-textMuted font-mono">Backend: Google Cloud</p>
+
+            <nav className="flex-1 space-y-2">
+              <div className="text-xs font-mono text-obsidian-textMuted uppercase tracking-wider mb-4 px-2">Collections</div>
+              <NavItem view="dashboard" icon={LayoutDashboard} label="Overview" />
+              <NavItem view="overview" icon={UserCircle} label="Global Profile" />
+              <NavItem view="projects" icon={FolderKanban} label="Projects" />
+              <NavItem view="experience" icon={History} label="Journey" />
+              <NavItem view="clients" icon={Users} label="Partners" />
+              
+              <div className="mt-8 text-xs font-mono text-obsidian-textMuted uppercase tracking-wider mb-4 px-2">System</div>
+              <button
+                onClick={handleDeployRequest}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-neon-cyan hover:bg-neon-cyan/10 border border-transparent hover:border-neon-cyan/30 transition-all group"
+              >
+                <Rocket size={20} />
+                <span className="font-medium">Deploy Prod</span>
+              </button>
+              <div className="px-4 py-3 flex items-center gap-2 text-obsidian-textMuted text-sm">
+                <Database size={16} />
+                <span>Cloud: <span className="text-green-500">Active</span></span>
+              </div>
+            </nav>
+
+            <div className="mt-auto pt-4 border-t border-obsidian-border">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-4 py-2 text-obsidian-textMuted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+              >
+                <LogOut size={16} />
+                <span className="text-sm font-medium">Sign Out</span>
+              </button>
             </div>
           </div>
+        </aside>
 
-          <nav className="flex-1 space-y-2">
-            <div className="text-xs font-mono text-obsidian-textMuted uppercase tracking-wider mb-4 px-2">Collections</div>
-            <NavItem view="dashboard" icon={LayoutDashboard} label="Overview" />
-            <NavItem view="projects" icon={FolderKanban} label="Projects" />
-            <NavItem view="experience" icon={History} label="Experience" />
-            
-            <div className="mt-8 text-xs font-mono text-obsidian-textMuted uppercase tracking-wider mb-4 px-2">System</div>
-            <button
-               onClick={() => setIsDeploying(true)}
-               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-neon-cyan hover:bg-neon-cyan/10 border border-transparent hover:border-neon-cyan/30 transition-all group"
+        <main className="flex-1 flex flex-col h-full relative overflow-hidden">
+          <header className="h-16 border-b border-obsidian-border bg-obsidian-bg/50 backdrop-blur-md flex items-center justify-between px-6 z-40">
+            <button 
+              className="md:hidden text-obsidian-text hover:text-white"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              <Rocket size={20} />
-              <span className="font-medium">Deploy Prod</span>
+              {mobileMenuOpen ? <X /> : <Menu />}
             </button>
-            <div className="px-4 py-3 flex items-center gap-2 text-obsidian-textMuted text-sm">
-               <Database size={16} />
-               <span>Status: <span className="text-green-500">Cloud Connected</span></span>
+            <div className="hidden md:flex items-center gap-4 flex-1 max-w-xl">
+               <span className="text-xs font-mono text-obsidian-textMuted">Session ID: {Math.random().toString(36).substring(7).toUpperCase()}</span>
             </div>
-          </nav>
+            <div className="flex items-center gap-4 ml-4">
+              <button className="relative p-2 text-obsidian-text hover:text-white transition-colors">
+                  <Bell size={20} />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-neon-pink rounded-full shadow-[0_0_8px_#FF0055]"></span>
+              </button>
+            </div>
+          </header>
 
-          <div className="mt-auto pt-4 border-t border-obsidian-border">
-             <button 
-               onClick={() => setIsAuthenticated(false)}
-               className="w-full flex items-center gap-2 px-4 py-2 text-obsidian-textMuted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-             >
-               <LogOut size={16} />
-               <span className="text-sm font-medium">Sign Out</span>
-             </button>
+          <div className="flex-1 overflow-y-auto bg-obsidian-bg p-6 scroll-smooth">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-4">
+                  <Loader2 size={48} className="animate-spin text-neon-cyan" />
+                  <p className="font-mono text-sm text-neon-cyan animate-pulse">Synchronizing Data Streams...</p>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                {currentView === 'dashboard' && (
+                  <DashboardOverview key="dashboard" projects={projects} experience={experience} />
+                )}
+                {currentView === 'overview' && (
+                  <OverviewEditor 
+                    key="overview"
+                    initialData={overview}
+                    onSave={handleSaveOverview}
+                  />
+                )}
+                {currentView === 'projects' && (
+                  <ProjectEditor 
+                    key="projects" 
+                    projects={projects} 
+                    onSave={handleSaveProject} 
+                    onAdd={handleCreateProject}
+                    onDelete={handleDeleteProject}
+                    onReorder={handleReorderProjects}
+                  />
+                )}
+                {currentView === 'experience' && (
+                  <ExperienceManager 
+                    key="experience" 
+                    experience={experience} 
+                    onUpdate={handleSaveExperience} 
+                    onDelete={handleDeleteExperience}
+                  />
+                )}
+                {currentView === 'clients' && (
+                  <ClientsManager 
+                    key="clients"
+                    clients={clients}
+                    onSave={handleSaveClient}
+                    onDelete={handleDeleteClient}
+                  />
+                )}
+              </AnimatePresence>
+            )}
           </div>
-        </div>
-      </aside>
+          
+          <AnimatePresence>
+            {notification && (
+              <motion.div 
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 50 }}
+                className={`fixed bottom-6 right-6 border px-6 py-3 rounded-lg shadow-2xl z-[100] flex items-center gap-3 ${
+                  notification.type === 'error' ? 'bg-red-500/10 border-red-500 text-red-500' :
+                  notification.type === 'loading' ? 'bg-obsidian-surface border-neon-cyan text-neon-cyan' :
+                  'bg-obsidian-surface border-neon-cyan text-white shadow-[0_0_20px_rgba(0,240,255,0.2)]'
+                }`}
+              >
+                {notification.type === 'loading' ? (
+                  <RefreshCw size={16} className="animate-spin" />
+                ) : notification.type === 'error' ? (
+                  <AlertTriangle size={16} />
+                ) : (
+                  <CheckCircle2 size={16} className="text-neon-cyan" />
+                )}
+                <span className="font-mono text-sm uppercase tracking-wider">{notification.msg}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      <main className="flex-1 flex flex-col h-full relative overflow-hidden">
-        <header className="h-16 border-b border-obsidian-border bg-obsidian-bg/50 backdrop-blur-md flex items-center justify-between px-6 z-40">
-          <button 
-            className="md:hidden text-obsidian-text hover:text-white"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X /> : <Menu />}
-          </button>
-          <div className="hidden md:flex items-center gap-4 flex-1 max-w-xl">
-             <div className="relative w-full">
-               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-textMuted" size={16} />
-               <input 
-                  type="text" 
-                  placeholder="Query live cloud database..." 
-                  className="w-full bg-obsidian-surface border border-obsidian-border rounded-lg pl-10 pr-4 py-1.5 text-sm focus:outline-none focus:border-neon-purple transition-colors text-white font-mono"
-               />
-             </div>
-          </div>
-          <div className="flex items-center gap-4 ml-4">
-             <button className="relative p-2 text-obsidian-text hover:text-white transition-colors">
-                <Bell size={20} />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-neon-pink rounded-full shadow-[0_0_8px_#FF0055]"></span>
-             </button>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto bg-obsidian-bg p-6 scroll-smooth">
-          {isLoading ? (
-             <div className="flex flex-col items-center justify-center h-full gap-4">
-                <Loader2 size={48} className="animate-spin text-neon-cyan" />
-                <p className="font-mono text-sm text-neon-cyan animate-pulse">Syncing with Google Cloud...</p>
-             </div>
-          ) : (
-            <AnimatePresence mode="wait">
-              {currentView === 'dashboard' && (
-                <DashboardOverview key="dashboard" projects={projects} experience={experience} />
-              )}
-              {currentView === 'projects' && (
-                <ProjectEditor 
-                  key="projects" 
-                  projects={projects} 
-                  onSave={handleSaveProject} 
-                  onAdd={handleCreateProject}
-                  onDelete={handleDeleteProject}
+          <AnimatePresence>
+            {modalConfig && (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                  onClick={() => setModalConfig(null)}
                 />
-              )}
-              {currentView === 'experience' && (
-                <ExperienceManager key="experience" experience={experience} setExperience={handleSaveExperience} />
-              )}
-            </AnimatePresence>
-          )}
-        </div>
-        
-        <AnimatePresence>
-          {notification && (
-            <motion.div 
-               initial={{ opacity: 0, y: 50 }}
-               animate={{ opacity: 1, y: 0 }}
-               exit={{ opacity: 0, y: 50 }}
-               className="fixed bottom-6 right-6 bg-obsidian-surface border border-neon-cyan text-white px-6 py-3 rounded-lg shadow-[0_0_20px_rgba(0,240,255,0.2)] z-50 flex items-center gap-3"
-            >
-               <div className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse" />
-               <span className="font-mono text-sm">{notification}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+                <motion.div 
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                  className={`relative w-full max-w-md bg-obsidian-surface border p-8 rounded-2xl shadow-2xl ${
+                    modalConfig.type === 'danger' ? 'border-red-500/30' : 'border-neon-cyan/30'
+                  }`}
+                >
+                  <div className="flex flex-col items-center text-center space-y-4">
+                      <div className={`p-4 rounded-full ${modalConfig.type === 'danger' ? 'bg-red-500/10' : 'bg-neon-cyan/10'}`}>
+                        {modalConfig.type === 'danger' ? <AlertTriangle size={32} className="text-red-500" /> : <Info size={32} className="text-neon-cyan" />}
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white uppercase tracking-tight">{modalConfig.title}</h3>
+                        <p className="text-obsidian-textMuted text-sm font-mono mt-3">
+                          {modalConfig.message}
+                        </p>
+                      </div>
+                      <div className="flex gap-3 w-full pt-6">
+                        <button 
+                          onClick={() => setModalConfig(null)}
+                          className="flex-1 px-4 py-3 rounded-xl bg-obsidian-bg border border-obsidian-border text-white hover:bg-obsidian-border transition-all font-bold text-sm"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={() => {
+                            modalConfig.onConfirm();
+                            setModalConfig(null);
+                          }}
+                          className={`flex-1 px-4 py-3 rounded-xl text-white font-bold text-sm transition-all shadow-lg ${
+                            modalConfig.type === 'danger' 
+                              ? 'bg-red-600 hover:bg-red-500' 
+                              : 'bg-neon-cyan text-black hover:bg-neon-cyan/90'
+                          }`}
+                        >
+                          {modalConfig.type === 'danger' ? 'Purge' : 'Execute'}
+                        </button>
+                      </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </main>
 
-      <AnimatePresence>
-        {isDeploying && <DeployStatus onClose={() => setIsDeploying(false)} />}
-      </AnimatePresence>
-    </div>
+        <AnimatePresence>
+          {isDeploying && <DeployStatus onClose={() => setIsDeploying(false)} />}
+        </AnimatePresence>
+      </div>
+    </UIContext.Provider>
   );
 };
 

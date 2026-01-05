@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, Experience } from '../../types';
-import { motion, useScroll, useTransform, AnimatePresence, useSpring } from 'framer-motion';
-import { ArrowDown, Mail, MapPin, Smartphone, MoveUpRight, X, Play, Eye, Palette, Layers, Cpu } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowDown, Mail, MapPin, Smartphone, MoveUpRight, X, Play, Palette, Layers, Cpu } from 'lucide-react';
 
 interface PortfolioProps {
   projects: Project[];
