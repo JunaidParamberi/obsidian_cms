@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Obsidian CMS | Junaid Paramberi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              obsidian: {
+                bg: '#0A0A0B',
+                surface: '#121214',
+                border: '#1A1A2E',
+                text: '#C0C0C0',
+                textMuted: '#6B6B7B'
+              },
+              neon: {
+                lime: '#E0FF00',
+                purple: '#B026FF',
+                cyan: '#00F0FF',
+                pink: '#FF0055',
+                ice: '#E0E0FF'
+              }
+            },
+            fontFamily: {
+              mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+              display: ['Playfair Display', 'serif'] 
+            },
+            backgroundImage: {
+              'iridescent': 'linear-gradient(135deg, #00F0FF 0%, #E0E0FF 50%, #B026FF 100%)'
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Custom Scrollbar for Obsidian Theme */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0A0A0B; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1A1A2E; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #2A2A4E; 
+      }
+      body {
+        background-color: #0A0A0B;
+        color: #E0E0FF;
+        cursor: none; /* Hide default cursor for custom one */
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      .no-cursor {
+        cursor: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "framer-motion": "https://esm.sh/framer-motion@^12.23.26",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "firebase/": "https://esm.sh/firebase@^12.7.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
