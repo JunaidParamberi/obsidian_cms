@@ -70,77 +70,73 @@ const OverviewEditor: React.FC<OverviewEditorProps> = ({ initialData, onSave }) 
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="flex flex-col h-full max-w-5xl mx-auto space-y-6 pb-20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-30 bg-obsidian-bg/80 backdrop-blur-md py-4">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-            <UserCircle className="text-neon-cyan" /> Profile Overview
+          <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
+            <UserCircle className="text-neon-cyan shrink-0" size={24} /> Global Profile
           </h2>
-          <p className="text-xs text-obsidian-textMuted font-mono mt-1 uppercase tracking-widest">Front-end Landing Page Metadata</p>
+          <p className="text-[10px] text-obsidian-textMuted font-mono mt-1 uppercase tracking-widest">Landing Page Metadata</p>
         </div>
         <button 
           onClick={handleSave} 
           disabled={isSaving || !isDirty}
-          className={`px-8 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 active:scale-95 ${
-            isDirty ? 'bg-neon-lime text-black hover:bg-white' : 'bg-obsidian-surface text-obsidian-textMuted opacity-50 cursor-not-allowed'
+          className={`w-full sm:w-auto px-8 py-3 rounded-xl font-black text-xs uppercase transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${
+            isDirty ? 'bg-neon-lime text-black hover:bg-white' : 'bg-obsidian-surface text-obsidian-textMuted opacity-50 cursor-not-allowed border border-obsidian-border'
           }`}
         >
           {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-          <span>{isSaving ? 'SYNCING...' : 'SAVE PROFILE'}</span>
+          <span>{isSaving ? 'Syncing...' : 'Save Changes'}</span>
         </button>
       </div>
 
-      <div className="flex gap-8 overflow-hidden flex-1">
-        <div className="flex-1 overflow-y-auto space-y-6 pb-20 pr-2 custom-scrollbar">
-          
-          {/* Header Specs */}
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-6 space-y-6">
+      <div className="flex flex-col xl:flex-row gap-6">
+        <div className="flex-1 space-y-6">
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-5 md:p-6 space-y-6">
             <h3 className="text-white font-medium flex items-center gap-2 border-b border-obsidian-border pb-4">
-              <Heading size={18} className="text-neon-cyan" /> Identity Branding
+              <Heading size={18} className="text-neon-cyan shrink-0" /> <span className="text-sm uppercase tracking-wider">Identity Branding</span>
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
+              <div className="space-y-1.5">
                 <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Main Heading</label>
                 <input 
                   value={localData.title} 
                   onChange={(e) => updateField('title', e.target.value)} 
-                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white focus:border-neon-cyan outline-none transition-all"
-                  placeholder="e.g. Professional Profile"
+                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white focus:border-neon-cyan outline-none transition-all text-sm"
+                  placeholder="Portfolio Title"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Subheading / Role</label>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Role Descriptor</label>
                 <input 
                   value={localData.subtitle} 
                   onChange={(e) => updateField('subtitle', e.target.value)} 
-                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-neon-cyan focus:border-neon-cyan outline-none transition-all font-medium"
-                  placeholder="e.g. Creative Technologist"
+                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-neon-cyan focus:border-neon-cyan outline-none transition-all font-medium text-sm"
+                  placeholder="Role"
                 />
               </div>
             </div>
           </div>
 
-          {/* Biography */}
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-6 space-y-4">
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-5 md:p-6 space-y-4">
             <h3 className="text-white font-medium flex items-center gap-2 border-b border-obsidian-border pb-4">
-              <TextQuote size={18} className="text-neon-purple" /> Biography / Summary
+              <TextQuote size={18} className="text-neon-purple shrink-0" /> <span className="text-sm uppercase tracking-wider">Biography</span>
             </h3>
             <textarea 
               value={localData.description} 
               onChange={(e) => updateField('description', e.target.value)} 
-              className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-6 text-white h-48 resize-none text-sm leading-relaxed focus:border-neon-purple outline-none transition-all"
-              placeholder="Tell your professional story..."
+              className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 md:p-6 text-white h-40 md:h-48 resize-none text-sm leading-relaxed focus:border-neon-purple outline-none transition-all"
+              placeholder="Tell your story..."
             />
           </div>
 
-          {/* Manual Stats Counter */}
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-6 space-y-6">
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-5 md:p-6 space-y-6">
             <div className="flex justify-between items-center border-b border-obsidian-border pb-4">
               <h3 className="text-white font-medium flex items-center gap-2">
-                <BarChart3 size={18} className="text-neon-lime" /> Hardcoded Stats
+                <BarChart3 size={18} className="text-neon-lime shrink-0" /> <span className="text-sm uppercase tracking-wider">Key Counters</span>
               </h3>
-              <button onClick={addStat} className="text-[10px] font-bold text-neon-lime hover:text-white flex items-center gap-1 uppercase transition-colors">
-                <Plus size={12} /> Add Counter
+              <button onClick={addStat} className="text-[10px] font-black text-neon-lime hover:text-white flex items-center gap-1 uppercase transition-colors">
+                <Plus size={14} /> Add Stat
               </button>
             </div>
             
@@ -149,36 +145,36 @@ const OverviewEditor: React.FC<OverviewEditorProps> = ({ initialData, onSave }) 
                 {localData.stats.map((stat, idx) => (
                   <motion.div 
                     key={idx}
+                    layout
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="flex gap-3 bg-obsidian-bg p-4 rounded-xl border border-obsidian-border group"
+                    className="flex flex-col gap-3 bg-obsidian-bg p-4 rounded-xl border border-obsidian-border group relative"
                   >
-                    <div className="flex-1 space-y-3">
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[9px] text-obsidian-textMuted uppercase font-mono block mb-1">Label</label>
-                          <input 
-                            value={stat.label} 
-                            onChange={(e) => updateStat(idx, 'label', e.target.value)} 
-                            className="w-full bg-obsidian-surface border border-obsidian-border rounded p-2 text-xs text-white focus:border-neon-lime outline-none"
-                            placeholder="e.g. Experience"
-                          />
-                        </div>
-                        <div className="w-24">
-                          <label className="text-[9px] text-obsidian-textMuted uppercase font-mono block mb-1">Value</label>
-                          <input 
-                            value={stat.value} 
-                            onChange={(e) => updateStat(idx, 'value', e.target.value)} 
-                            className="w-full bg-obsidian-surface border border-obsidian-border rounded p-2 text-xs text-neon-lime font-bold focus:border-neon-lime outline-none text-center"
-                            placeholder="6+ Years"
-                          />
-                        </div>
+                    <div className="grid grid-cols-2 gap-3 pr-8">
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-obsidian-textMuted uppercase font-mono block">Label</label>
+                        <input 
+                          value={stat.label} 
+                          onChange={(e) => updateStat(idx, 'label', e.target.value)} 
+                          className="w-full bg-obsidian-surface border border-obsidian-border rounded-lg p-2 text-[11px] text-white focus:border-neon-lime outline-none"
+                          placeholder="Label"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-obsidian-textMuted uppercase font-mono block">Value</label>
+                        <input 
+                          value={stat.value} 
+                          onChange={(e) => updateStat(idx, 'value', e.target.value)} 
+                          className="w-full bg-obsidian-surface border border-obsidian-border rounded-lg p-2 text-[11px] text-neon-lime font-bold focus:border-neon-lime outline-none text-center"
+                          placeholder="Value"
+                        />
                       </div>
                     </div>
                     <button 
                       onClick={() => removeStat(idx)} 
-                      className="text-obsidian-textMuted hover:text-red-500 self-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-4 right-4 text-obsidian-textMuted hover:text-red-500 transition-colors"
+                      title="Remove Stat"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -187,24 +183,25 @@ const OverviewEditor: React.FC<OverviewEditorProps> = ({ initialData, onSave }) 
               </AnimatePresence>
             </div>
             {localData.stats.length === 0 && (
-              <div className="py-10 text-center border border-dashed border-obsidian-border rounded-xl">
-                <p className="text-xs text-obsidian-textMuted font-mono">No stats defined. Add one to show on your profile.</p>
+              <div className="py-12 text-center border border-dashed border-obsidian-border rounded-2xl bg-obsidian-bg/40">
+                <p className="text-[10px] text-obsidian-textMuted font-mono uppercase tracking-widest">No stats defined.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* JSON Preview Panel */}
-        <div className="w-80 bg-black/40 border border-obsidian-border rounded-2xl p-6 hidden lg:flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] text-neon-cyan font-mono uppercase tracking-widest flex items-center gap-2">
-              <FileJson size={14} /> Profile.json
-            </span>
-            {isDirty && <div className="w-2 h-2 rounded-full bg-neon-purple animate-pulse" />}
+        <div className="w-full xl:w-80 shrink-0 hidden xl:flex flex-col h-fit sticky top-24">
+          <div className="bg-black/40 border border-obsidian-border rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] text-neon-cyan font-mono uppercase tracking-widest flex items-center gap-2">
+                <FileJson size={14} /> Profile Schema
+              </span>
+              {isDirty && <div className="w-2 h-2 rounded-full bg-neon-purple animate-pulse shadow-[0_0_8px_#B026FF]" />}
+            </div>
+            <pre className="text-[10px] font-mono text-cyan-400/40 overflow-hidden leading-relaxed">
+              {JSON.stringify(localData, null, 2)}
+            </pre>
           </div>
-          <pre className="flex-1 text-[10px] font-mono text-cyan-400/60 overflow-y-auto custom-scrollbar">
-            {JSON.stringify(localData, null, 2)}
-          </pre>
         </div>
       </div>
     </div>

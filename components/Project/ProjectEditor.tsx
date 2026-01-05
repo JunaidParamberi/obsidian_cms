@@ -61,7 +61,7 @@ const ProjectCard = ({
   return (
     <motion.div 
       layout
-      className={`group relative bg-obsidian-card border rounded-xl overflow-hidden cursor-pointer shadow-lg transition-all h-full ${
+      className={`group relative bg-obsidian-surface border rounded-xl overflow-hidden cursor-pointer shadow-lg transition-all h-full ${
         isDragging ? 'z-50 border-neon-cyan shadow-[0_20px_50px_rgba(0,0,0,0.5)] scale-105 opacity-90' : 'z-0 border-obsidian-border hover:border-neon-cyan/50'
       }`}
       onClick={(e) => {
@@ -80,7 +80,6 @@ const ProjectCard = ({
           alt={project.title}
         />
         
-        {/* Specific Drag Handle */}
         <div 
           onPointerDown={(e) => controls.start(e)}
           className="absolute top-2 left-2 p-1.5 bg-black/60 text-white/70 rounded-lg opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-grab active:cursor-grabbing border border-white/10"
@@ -103,7 +102,7 @@ const ProjectCard = ({
               onConfirm: () => onDelete(project.id)
             });
           }}
-          className="absolute top-2 right-2 p-1.5 bg-red-600/80 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 z-10 shadow-xl"
+          className="absolute top-2 right-2 p-1.5 bg-red-600/80 text-white rounded-lg opacity-100 transition-opacity hover:bg-red-500 z-10 shadow-xl"
         >
           <Trash2 size={12} />
         </button>
@@ -125,7 +124,6 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
   const [isSaving, setIsSaving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [colorInput, setColorInput] = useState('#');
   const [tagInput, setTagInput] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
   
@@ -229,18 +227,6 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
     updateField('tags', localProject.tags.filter(t => t !== tagToRemove));
   };
 
-  const handleAddColor = () => {
-    const color = colorInput.trim();
-    if (color.length >= 4 && /^#([A-Fa-f0-9]{3}){1,2}$/.test(color)) {
-      const currentColors = localProject?.specs.colors || [];
-      if (!currentColors.includes(color)) {
-        updateField('specs.colors', [...currentColors, color]);
-      }
-      setColorInput('#');
-    }
-  };
-
-  // Improved 2D Sort Logic with Midpoint Collision
   const handleDragUpdate = (draggedId: string, info: any) => {
     if (!gridRef.current) return;
     
@@ -256,14 +242,10 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
     for (let i = 0; i < gridItems.length; i++) {
       if (i === fromIndex) continue;
       const rect = gridItems[i].getBoundingClientRect();
-      
-      // Calculate center of each item for better swap detection
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
       const distance = Math.hypot(cursorX - centerX, cursorY - centerY);
 
-      // Trigger swap if cursor enters a reasonably tight radius of the neighbor card center
-      // 100px is usually enough for responsive, "visibly live" feedback
       if (distance < 100) {
         toIndex = i;
         break;
@@ -282,7 +264,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
     const filtered = projects.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
     
     return (
-      <div className="flex flex-col h-full space-y-6">
+      <div className="flex flex-col h-full space-y-4 md:space-y-6">
         <style>{`
           @keyframes shimmer {
             0% { background-position: -200% 0; }
@@ -290,17 +272,17 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
           }
         `}</style>
         
-        <div className="flex justify-between items-center bg-obsidian-surface/50 p-4 rounded-xl border border-obsidian-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-obsidian-surface border border-obsidian-border p-4 md:p-6 rounded-2xl gap-4">
           <div className="flex flex-col">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <FolderPlus className="text-neon-cyan" /> Visual Archive
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <FolderPlus className="text-neon-cyan shrink-0" size={20} /> Visual Archive
             </h2>
-            <p className="text-[10px] text-obsidian-textMuted font-mono mt-1 uppercase tracking-widest">
-              <Sparkles size={10} className="inline mr-1 text-neon-lime" /> Items swap in real-time. Cloud sync confirmed on drop.
+            <p className="text-[9px] md:text-[10px] text-obsidian-textMuted font-mono mt-1 uppercase tracking-widest leading-relaxed">
+              <Sparkles size={10} className="inline mr-1 text-neon-lime" /> Swap items live. Sync on drop.
             </p>
           </div>
-          <div className="flex gap-3">
-             <div className="relative w-64">
+          <div className="flex flex-col sm:flex-row gap-3">
+             <div className="relative w-full sm:w-48 lg:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-textMuted" size={14} />
                 <input 
                   placeholder="Filter records..." 
@@ -312,16 +294,16 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
              <button 
               onClick={handleCreate} 
               disabled={isCreating}
-              className="px-6 py-2 bg-neon-purple text-black font-bold rounded-lg hover:bg-neon-purple/90 transition-all flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-wait"
+              className="px-6 py-2 bg-neon-purple text-black font-bold rounded-lg hover:bg-neon-purple/90 transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
              >
                 {isCreating ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
-                    GENERATING...
+                    <Loader2 size={16} className="animate-spin" />
+                    <span className="text-xs">GENERATING...</span>
                   </>
                 ) : (
                   <>
-                    <Plus size={18} /> New Project
+                    <Plus size={16} /> <span className="text-xs uppercase">New Project</span>
                   </>
                 )}
              </button>
@@ -329,15 +311,15 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
         </div>
 
         {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-obsidian-card border border-obsidian-border border-dashed rounded-3xl opacity-50">
-             <Layers size={48} className="text-obsidian-textMuted mb-4" />
+          <div className="flex flex-col items-center justify-center py-20 bg-obsidian-surface border border-obsidian-border border-dashed rounded-3xl opacity-50 text-center px-6">
+             <Layers size={40} className="text-obsidian-textMuted mb-4" />
              <p className="text-obsidian-textMuted font-mono text-sm uppercase">No cloud records detected</p>
-             <button onClick={handleCreate} className="text-neon-cyan font-bold text-[10px] mt-4 hover:underline">CREATE FIRST PROJECT</button>
+             <button onClick={handleCreate} className="text-neon-cyan font-bold text-[10px] mt-4 hover:underline uppercase tracking-widest">Create First Project</button>
           </div>
         ) : (
           <div 
             ref={gridRef}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pb-32"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 pb-20"
           >
             <AnimatePresence mode="popLayout">
               {filtered.map((p) => (
@@ -352,7 +334,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 50, mass: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 40 }}
                 >
                   <ProjectCard 
                     project={p} 
@@ -371,63 +353,73 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)]">
-      <div className="flex items-center justify-between mb-6 bg-obsidian-bg sticky top-0 z-30 py-2 border-b border-obsidian-border/30">
+    <div className="flex flex-col h-full">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 bg-obsidian-bg sticky top-0 z-30 py-4 border-b border-obsidian-border gap-4">
         <div className="flex items-center gap-4">
-          <button onClick={() => setViewMode('grid')} className="text-obsidian-textMuted hover:text-white flex items-center gap-2 transition-colors"><ArrowLeft size={18} /> BACK</button>
-          <div className="flex flex-col">
-            <h2 className="text-sm font-bold text-white font-mono">{localProject?.title}</h2>
+          <button onClick={() => setViewMode('grid')} className="text-obsidian-textMuted hover:text-white flex items-center gap-2 transition-colors">
+            <ArrowLeft size={18} /> <span className="text-xs font-bold font-mono">BACK</span>
+          </button>
+          <div className="flex flex-col border-l border-obsidian-border pl-4">
+            <h2 className="text-sm font-bold text-white font-mono truncate max-w-[150px] md:max-w-none">{localProject?.title}</h2>
             <span className="text-[9px] text-obsidian-textMuted uppercase font-mono">ID: {localProject?.id}</span>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 w-full sm:w-auto">
           <button 
             onClick={() => ui?.confirm({ 
               title: "Purge Project Record?", 
               message: "Warning: This action is irreversible. All associated cloud data will be purged.", 
               onConfirm: () => { if(localProject) onDelete(localProject.id); setViewMode('grid'); }
             })} 
-            className="px-4 py-2 rounded-lg border border-red-500/20 text-red-500 text-xs font-bold hover:bg-red-500/10 transition-all"
+            className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-red-500/20 text-red-500 text-[10px] font-black uppercase hover:bg-red-500/10 transition-all"
           >
-            DELETE
+            Delete
           </button>
-          <button onClick={handleSave} disabled={isSaving || !isDirty} className={`px-6 py-2 rounded-lg font-mono text-xs font-bold transition-all shadow-lg ${isDirty ? 'bg-neon-lime text-black' : 'bg-obsidian-surface text-obsidian-textMuted opacity-50'}`}>
-            {isSaving ? 'SYNCING...' : 'SAVE CHANGES'}
+          <button 
+            onClick={handleSave} 
+            disabled={isSaving || !isDirty} 
+            className={`flex-1 sm:flex-none px-6 py-2 rounded-lg font-mono text-[10px] font-black uppercase transition-all shadow-lg ${isDirty ? 'bg-neon-lime text-black' : 'bg-obsidian-surface text-obsidian-textMuted opacity-50 cursor-not-allowed'}`}
+          >
+            {isSaving ? 'Syncing...' : 'Save Changes'}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 flex gap-6 overflow-hidden">
-        <div className="flex-1 overflow-y-auto space-y-6 pb-20 custom-scrollbar pr-2">
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
+        <div className="flex-1 overflow-y-auto space-y-6 pb-20 custom-scrollbar pr-1 md:pr-2">
           
-          {/* Form Fields... (same as before) */}
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-6 space-y-6">
-            <div className="flex justify-between items-center border-b border-obsidian-border pb-3">
-              <h3 className="text-white font-medium flex items-center gap-2"><Settings2 size={16} className="text-neon-cyan" /> Core Identity</h3>
-              <div className="flex items-center gap-3 bg-obsidian-bg px-3 py-1.5 rounded-lg border border-obsidian-border">
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-5 md:p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-obsidian-border pb-4 gap-4">
+              <h3 className="text-white font-medium flex items-center gap-2">
+                <Settings2 size={16} className="text-neon-cyan shrink-0" /> <span className="text-sm uppercase tracking-wider">Core Identity</span>
+              </h3>
+              <div className="flex items-center justify-between sm:justify-end gap-3 bg-obsidian-bg px-3 py-2 rounded-lg border border-obsidian-border w-full sm:w-auto">
                 <span className="text-[10px] text-obsidian-textMuted uppercase font-mono">Featured Project</span>
-                <button onClick={() => updateField('featured', !localProject?.featured)} className={`relative w-10 h-5 rounded-full transition-colors ${localProject?.featured ? 'bg-neon-purple' : 'bg-obsidian-border'}`}>
+                <button 
+                  onClick={() => updateField('featured', !localProject?.featured)} 
+                  className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${localProject?.featured ? 'bg-neon-purple' : 'bg-obsidian-border'}`}
+                >
                   <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${localProject?.featured ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-wider">Project Title</label>
-                <input value={localProject?.title || ''} onChange={(e) => updateField('title', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 text-white focus:border-neon-cyan outline-none transition-colors" placeholder="Project Name" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Project Title</label>
+                <input value={localProject?.title || ''} onChange={(e) => updateField('title', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-3 text-white focus:border-neon-cyan outline-none transition-colors text-sm" placeholder="Project Name" />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-wider">Display Category</label>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Display Category</label>
                 <div className="relative">
                   <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-textMuted" size={14} />
-                  <input value={localProject?.category || ''} onChange={(e) => updateField('category', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 pl-10 text-white focus:border-neon-cyan outline-none" placeholder="UI/UX, Branding..." />
+                  <input value={localProject?.category || ''} onChange={(e) => updateField('category', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-3 pl-10 text-white focus:border-neon-cyan outline-none text-sm" placeholder="UI/UX, Branding..." />
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-wider">Filter Type</label>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Filter Type</label>
                 <div className="relative">
-                  <select value={localProject?.filterCategory} onChange={(e) => updateField('filterCategory', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 text-white appearance-none outline-none focus:border-neon-purple">
+                  <select value={localProject?.filterCategory} onChange={(e) => updateField('filterCategory', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-3 text-white appearance-none outline-none focus:border-neon-purple text-sm">
                     <option value="coding">Coding / Web</option>
                     <option value="graphic">Graphic Design</option>
                     <option value="motion">Motion GFX</option>
@@ -439,10 +431,10 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-wider flex items-center gap-1">
+              <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest flex items-center gap-1">
                 <Hash size={10} /> Metadata Tags
               </label>
-              <div className="bg-obsidian-bg border border-obsidian-border rounded p-3 min-h-[50px] flex flex-wrap gap-2 items-center">
+              <div className="bg-obsidian-bg border border-obsidian-border rounded-lg p-3 min-h-[50px] flex flex-wrap gap-2 items-center">
                 <AnimatePresence>
                   {localProject?.tags.map(tag => (
                     <motion.span 
@@ -450,10 +442,10 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.8, opacity: 0 }}
-                      className="bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1"
+                      className="bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"
                     >
                       {tag}
-                      <button onClick={() => handleRemoveTag(tag)} className="hover:text-white transition-colors"><X size={10} /></button>
+                      <button onClick={() => handleRemoveTag(tag)} className="hover:text-white transition-colors shrink-0"><X size={10} /></button>
                     </motion.span>
                   ))}
                 </AnimatePresence>
@@ -461,57 +453,57 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
                   value={tagInput} 
                   onChange={(e) => setTagInput(e.target.value)} 
                   onKeyDown={handleAddTag}
-                  placeholder="Type & Enter..." 
-                  className="bg-transparent text-xs text-white outline-none flex-1 min-w-[120px] ml-2" 
+                  placeholder="Tag + Enter" 
+                  className="bg-transparent text-xs text-white outline-none flex-1 min-w-[100px] ml-1" 
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-wider text-neon-cyan">Project URL</label>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest text-neon-cyan">Project URL</label>
               <div className="relative">
                 <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-textMuted" size={14} />
-                <input value={localProject?.link || ''} onChange={(e) => updateField('link', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 pl-10 text-neon-cyan focus:border-neon-cyan outline-none transition-colors" placeholder="https://..." />
+                <input value={localProject?.link || ''} onChange={(e) => updateField('link', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-3 pl-10 text-neon-cyan focus:border-neon-cyan outline-none transition-colors text-sm" placeholder="https://..." />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-wider">Executive Summary</label>
-              <textarea value={localProject?.description || ''} onChange={(e) => updateField('description', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 text-white h-24 resize-none text-sm focus:border-neon-cyan outline-none leading-relaxed" placeholder="Short description for grid previews..." />
-            </div>
-          </div>
-
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-6 space-y-6">
-            <h3 className="text-white font-medium flex items-center gap-2 border-b border-obsidian-border pb-3"><BookOpen size={16} className="text-neon-lime" /> Case Study Narrative</h3>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Target size={10} className="text-neon-pink" /> The Challenge</label>
-                <textarea value={localProject?.narrative.challenge || ''} onChange={(e) => updateField('narrative.challenge', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 text-white h-32 resize-none text-sm focus:border-neon-pink outline-none leading-relaxed transition-colors" placeholder="What problem were you solving?" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><History size={10} className="text-neon-cyan" /> Execution</label>
-                <textarea value={localProject?.narrative.execution || ''} onChange={(e) => updateField('narrative.execution', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 text-white h-32 resize-none text-sm focus:border-neon-cyan outline-none leading-relaxed transition-colors" placeholder="How did you implement the solution?" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Trophy size={10} className="text-neon-lime" /> The Result</label>
-                <textarea value={localProject?.narrative.result || ''} onChange={(e) => updateField('narrative.result', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded p-3 text-white h-32 resize-none text-sm focus:border-neon-lime outline-none leading-relaxed transition-colors" placeholder="What was the final impact or outcome?" />
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Executive Summary</label>
+              <textarea value={localProject?.description || ''} onChange={(e) => updateField('description', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-4 text-white h-24 md:h-28 resize-none text-sm focus:border-neon-cyan outline-none leading-relaxed" placeholder="Short description..." />
             </div>
           </div>
 
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-6">
-             <h3 className="text-white font-medium mb-4 flex items-center gap-2 border-b border-obsidian-border pb-3"><ImageIcon size={16} className="text-neon-cyan" /> Media Assets</h3>
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-5 md:p-6 space-y-6">
+            <h3 className="text-white font-medium flex items-center gap-2 border-b border-obsidian-border pb-4"><BookOpen size={16} className="text-neon-lime shrink-0" /> <span className="text-sm uppercase tracking-wider">Case Study Narrative</span></h3>
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Target size={12} className="text-neon-pink" /> The Challenge</label>
+                <textarea value={localProject?.narrative.challenge || ''} onChange={(e) => updateField('narrative.challenge', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-4 text-white h-32 resize-none text-sm focus:border-neon-pink outline-none leading-relaxed transition-colors" placeholder="What problem were you solving?" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><History size={12} className="text-neon-cyan" /> Execution</label>
+                <textarea value={localProject?.narrative.execution || ''} onChange={(e) => updateField('narrative.execution', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-4 text-white h-32 resize-none text-sm focus:border-neon-cyan outline-none leading-relaxed transition-colors" placeholder="How did you implement it?" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Trophy size={12} className="text-neon-lime" /> The Result</label>
+                <textarea value={localProject?.narrative.result || ''} onChange={(e) => updateField('narrative.result', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-lg p-4 text-white h-32 resize-none text-sm focus:border-neon-lime outline-none leading-relaxed transition-colors" placeholder="What was the outcome?" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-5 md:p-6">
+             <h3 className="text-white font-medium mb-6 flex items-center gap-2 border-b border-obsidian-border pb-4"><ImageIcon size={16} className="text-neon-cyan shrink-0" /> <span className="text-sm uppercase tracking-wider">Media Assets</span></h3>
              <MediaGallery items={localProject?.gallery || []} currentCover={localProject?.image || ''} onChange={(items) => updateField('gallery', items)} onSetCover={(url) => updateField('image', url)} />
           </div>
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-6">
-             <h3 className="text-white font-medium mb-4 flex items-center gap-2 border-b border-obsidian-border pb-3"><LayoutGrid size={16} className="text-neon-purple" /> Bento Planner</h3>
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-xl p-5 md:p-6">
+             <h3 className="text-white font-medium mb-6 flex items-center gap-2 border-b border-obsidian-border pb-4"><LayoutGrid size={16} className="text-neon-purple shrink-0" /> <span className="text-sm uppercase tracking-wider">Bento Grid Planner</span></h3>
              <GridPlanner value={localProject?.gridArea || ''} onChange={(val) => updateField('gridArea', val)} />
           </div>
         </div>
 
-        <div className="w-80 bg-black/50 border border-obsidian-border rounded-xl p-4 hidden lg:flex flex-col">
-          <div className="text-[10px] text-neon-lime font-mono uppercase mb-4 opacity-70 flex items-center gap-2"><FileJson size={12} /> JSON Stream</div>
-          <textarea value={debouncedJson} readOnly className="flex-1 bg-transparent font-mono text-[10px] text-green-400/60 outline-none resize-none custom-scrollbar" />
+        <div className="w-full lg:w-80 bg-black/40 border border-obsidian-border rounded-xl p-4 hidden xl:flex flex-col">
+          <div className="text-[10px] text-neon-lime font-mono uppercase mb-4 opacity-70 flex items-center gap-2"><FileJson size={14} /> JSON Stream</div>
+          <textarea value={debouncedJson} readOnly className="flex-1 bg-transparent font-mono text-[10px] text-green-400/50 outline-none resize-none custom-scrollbar leading-relaxed" />
         </div>
       </div>
     </div>

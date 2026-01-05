@@ -137,30 +137,23 @@ const App: React.FC = () => {
   };
 
   const handleReorderProjects = (reorderedProjects: Project[]) => {
-    // 1. Immediate local update for "live" feel
     setProjects(reorderedProjects);
     
     if (reorderTimeoutRef.current) {
       clearTimeout(reorderTimeoutRef.current);
     }
 
-    // 2. Debounce the Firestore write to avoid rate limits
     reorderTimeoutRef.current = setTimeout(async () => {
       showNotification("Syncing sequence to cloud...", 'loading');
-
-      // Create update payload with new order indexes
       const updates = reorderedProjects.map((p, index) => ({
         id: p.id,
         order: index
       }));
 
       try {
-        // 3. Persistent write to Firebase
         await api.updateProjectOrders(updates);
         lastSyncedProjectsRef.current = JSON.parse(JSON.stringify(reorderedProjects));
-        
-        // 4. Success Confirmation
-        setNotification(null); // Clear loading
+        setNotification(null);
         setTimeout(() => showNotification("Cloud Database Updated Successfully"), 100);
       } catch (e) {
         console.error("Reorder persistence failed:", e);
@@ -258,8 +251,8 @@ const App: React.FC = () => {
           ? 'bg-obsidian-border text-neon-cyan border border-obsidian-border' 
           : 'text-obsidian-textMuted hover:bg-obsidian-surface hover:text-white'}`}
     >
-      <Icon size={20} className={`transition-colors ${currentView === view ? 'text-neon-cyan' : 'group-hover:text-white'}`} />
-      <span className="font-medium tracking-wide">{label}</span>
+      <Icon size={20} className={`shrink-0 transition-colors ${currentView === view ? 'text-neon-cyan' : 'group-hover:text-white'}`} />
+      <span className="font-medium tracking-wide text-sm">{label}</span>
       {currentView === view && (
         <motion.div layoutId="active-indicator" className="ml-auto w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_8px_#00F0FF]" />
       )}
@@ -273,7 +266,20 @@ const App: React.FC = () => {
   return (
     <UIContext.Provider value={{ confirm: triggerConfirm, notify: showNotification }}>
       <div className="flex h-screen overflow-hidden bg-obsidian-bg text-obsidian-text font-sans">
-        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-obsidian-bg border-r border-obsidian-border transform transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Overlay for mobile menu */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[45] md:hidden"
+            />
+          )}
+        </AnimatePresence>
+
+        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-obsidian-bg border-r border-obsidian-border transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex flex-col h-full p-4">
             <div className="flex items-center gap-3 px-2 mb-10 mt-2">
               <div className="p-2 rounded bg-obsidian-surface border border-obsidian-border relative overflow-hidden">
@@ -288,24 +294,24 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <nav className="flex-1 space-y-2">
-              <div className="text-xs font-mono text-obsidian-textMuted uppercase tracking-wider mb-4 px-2">Collections</div>
+            <nav className="flex-1 space-y-1.5 overflow-y-auto no-scrollbar">
+              <div className="text-[10px] font-mono text-obsidian-textMuted uppercase tracking-widest mb-3 px-2">Collections</div>
               <NavItem view="dashboard" icon={LayoutDashboard} label="Overview" />
               <NavItem view="overview" icon={UserCircle} label="Global Profile" />
               <NavItem view="projects" icon={FolderKanban} label="Projects" />
               <NavItem view="experience" icon={History} label="Journey" />
               <NavItem view="clients" icon={Users} label="Partners" />
               
-              <div className="mt-8 text-xs font-mono text-obsidian-textMuted uppercase tracking-wider mb-4 px-2">System</div>
+              <div className="mt-8 text-[10px] font-mono text-obsidian-textMuted uppercase tracking-widest mb-3 px-2">System</div>
               <button
                 onClick={handleDeployRequest}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-neon-cyan hover:bg-neon-cyan/10 border border-transparent hover:border-neon-cyan/30 transition-all group"
               >
-                <Rocket size={20} />
-                <span className="font-medium">Deploy Prod</span>
+                <Rocket size={20} className="shrink-0" />
+                <span className="font-medium text-sm">Deploy Prod</span>
               </button>
-              <div className="px-4 py-3 flex items-center gap-2 text-obsidian-textMuted text-sm">
-                <Database size={16} />
+              <div className="px-4 py-3 flex items-center gap-2 text-obsidian-textMuted text-[10px] font-mono uppercase">
+                <Database size={12} />
                 <span>Cloud: <span className="text-green-500">Active</span></span>
               </div>
             </nav>
@@ -323,68 +329,69 @@ const App: React.FC = () => {
         </aside>
 
         <main className="flex-1 flex flex-col h-full relative overflow-hidden">
-          <header className="h-16 border-b border-obsidian-border bg-obsidian-bg/50 backdrop-blur-md flex items-center justify-between px-6 z-40">
+          <header className="h-16 border-b border-obsidian-border bg-obsidian-bg/50 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-40">
             <button 
-              className="md:hidden text-obsidian-text hover:text-white"
+              className="md:hidden text-obsidian-text hover:text-white p-2 -ml-2 transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              {mobileMenuOpen ? <X /> : <Menu />}
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <div className="hidden md:flex items-center gap-4 flex-1 max-w-xl">
-               <span className="text-xs font-mono text-obsidian-textMuted">Session ID: {Math.random().toString(36).substring(7).toUpperCase()}</span>
+            <div className="flex-1 px-4 hidden sm:block">
+               <span className="text-[10px] font-mono text-obsidian-textMuted uppercase">Session: {Math.random().toString(36).substring(7).toUpperCase()}</span>
             </div>
-            <div className="flex items-center gap-4 ml-4">
+            <div className="flex items-center gap-2 md:gap-4">
               <button className="relative p-2 text-obsidian-text hover:text-white transition-colors">
                   <Bell size={20} />
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-neon-pink rounded-full shadow-[0_0_8px_#FF0055]"></span>
+                  <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-neon-pink rounded-full shadow-[0_0_8px_#FF0055]"></span>
               </button>
+              <div className="w-8 h-8 rounded-full bg-obsidian-surface border border-obsidian-border flex items-center justify-center text-[10px] font-bold text-neon-cyan">
+                JP
+              </div>
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto bg-obsidian-bg p-6 scroll-smooth">
+          <div className="flex-1 overflow-y-auto bg-obsidian-bg p-4 md:p-6 scroll-smooth">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center h-full gap-4">
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
                   <Loader2 size={48} className="animate-spin text-neon-cyan" />
                   <p className="font-mono text-sm text-neon-cyan animate-pulse">Synchronizing Data Streams...</p>
               </div>
             ) : (
               <AnimatePresence mode="wait">
-                {currentView === 'dashboard' && (
-                  <DashboardOverview key="dashboard" projects={projects} experience={experience} />
-                )}
-                {currentView === 'overview' && (
-                  <OverviewEditor 
-                    key="overview"
-                    initialData={overview}
-                    onSave={handleSaveOverview}
-                  />
-                )}
-                {currentView === 'projects' && (
-                  <ProjectEditor 
-                    key="projects" 
-                    projects={projects} 
-                    onSave={handleSaveProject} 
-                    onAdd={handleCreateProject}
-                    onDelete={handleDeleteProject}
-                    onReorder={handleReorderProjects}
-                  />
-                )}
-                {currentView === 'experience' && (
-                  <ExperienceManager 
-                    key="experience" 
-                    experience={experience} 
-                    onUpdate={handleSaveExperience} 
-                    onDelete={handleDeleteExperience}
-                  />
-                )}
-                {currentView === 'clients' && (
-                  <ClientsManager 
-                    key="clients"
-                    clients={clients}
-                    onSave={handleSaveClient}
-                    onDelete={handleDeleteClient}
-                  />
-                )}
+                <motion.div
+                  key={currentView}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="h-full"
+                >
+                  {currentView === 'dashboard' && <DashboardOverview projects={projects} experience={experience} />}
+                  {currentView === 'overview' && <OverviewEditor initialData={overview} onSave={handleSaveOverview} />}
+                  {currentView === 'projects' && (
+                    <ProjectEditor 
+                      projects={projects} 
+                      onSave={handleSaveProject} 
+                      onAdd={handleCreateProject}
+                      onDelete={handleDeleteProject}
+                      onReorder={handleReorderProjects}
+                    />
+                  )}
+                  {currentView === 'experience' && (
+                    <ExperienceManager 
+                      experience={experience} 
+                      onUpdate={handleSaveExperience} 
+                      onDelete={handleDeleteExperience}
+                    />
+                  )}
+                  {currentView === 'clients' && (
+                    <ClientsManager 
+                      clients={clients}
+                      onSave={handleSaveClient}
+                      onDelete={handleDeleteClient}
+                    />
+                  )}
+                </motion.div>
               </AnimatePresence>
             )}
           </div>
@@ -395,20 +402,20 @@ const App: React.FC = () => {
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 50 }}
-                className={`fixed bottom-6 right-6 border px-6 py-3 rounded-lg shadow-2xl z-[100] flex items-center gap-3 ${
+                className={`fixed bottom-4 left-4 right-4 md:left-auto md:bottom-6 md:right-6 border px-4 md:px-6 py-3 rounded-lg shadow-2xl z-[100] flex items-center gap-3 ${
                   notification.type === 'error' ? 'bg-red-500/10 border-red-500 text-red-500' :
                   notification.type === 'loading' ? 'bg-obsidian-surface border-neon-cyan text-neon-cyan' :
                   'bg-obsidian-surface border-neon-cyan text-white shadow-[0_0_20px_rgba(0,240,255,0.2)]'
                 }`}
               >
                 {notification.type === 'loading' ? (
-                  <RefreshCw size={16} className="animate-spin" />
+                  <RefreshCw size={16} className="animate-spin shrink-0" />
                 ) : notification.type === 'error' ? (
-                  <AlertTriangle size={16} />
+                  <AlertTriangle size={16} className="shrink-0" />
                 ) : (
-                  <CheckCircle2 size={16} className="text-neon-cyan" />
+                  <CheckCircle2 size={16} className="text-neon-cyan shrink-0" />
                 )}
-                <span className="font-mono text-sm uppercase tracking-wider">{notification.msg}</span>
+                <span className="font-mono text-[10px] md:text-sm uppercase tracking-wider truncate">{notification.msg}</span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -427,7 +434,7 @@ const App: React.FC = () => {
                   initial={{ scale: 0.95, opacity: 0, y: 20 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                  className={`relative w-full max-w-md bg-obsidian-surface border p-8 rounded-2xl shadow-2xl ${
+                  className={`relative w-full max-w-md bg-obsidian-surface border p-6 md:p-8 rounded-2xl shadow-2xl ${
                     modalConfig.type === 'danger' ? 'border-red-500/30' : 'border-neon-cyan/30'
                   }`}
                 >
@@ -436,15 +443,15 @@ const App: React.FC = () => {
                         {modalConfig.type === 'danger' ? <AlertTriangle size={32} className="text-red-500" /> : <Info size={32} className="text-neon-cyan" />}
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold text-white uppercase tracking-tight">{modalConfig.title}</h3>
-                        <p className="text-obsidian-textMuted text-sm font-mono mt-3">
+                        <h3 className="text-lg md:text-xl font-bold text-white uppercase tracking-tight">{modalConfig.title}</h3>
+                        <p className="text-obsidian-textMuted text-xs md:text-sm font-mono mt-3">
                           {modalConfig.message}
                         </p>
                       </div>
-                      <div className="flex gap-3 w-full pt-6">
+                      <div className="flex flex-col sm:flex-row gap-3 w-full pt-6">
                         <button 
                           onClick={() => setModalConfig(null)}
-                          className="flex-1 px-4 py-3 rounded-xl bg-obsidian-bg border border-obsidian-border text-white hover:bg-obsidian-border transition-all font-bold text-sm"
+                          className="order-2 sm:order-1 flex-1 px-4 py-3 rounded-xl bg-obsidian-bg border border-obsidian-border text-white hover:bg-obsidian-border transition-all font-bold text-sm"
                         >
                           Cancel
                         </button>
@@ -453,7 +460,7 @@ const App: React.FC = () => {
                             modalConfig.onConfirm();
                             setModalConfig(null);
                           }}
-                          className={`flex-1 px-4 py-3 rounded-xl text-white font-bold text-sm transition-all shadow-lg ${
+                          className={`order-1 sm:order-2 flex-1 px-4 py-3 rounded-xl text-white font-bold text-sm transition-all shadow-lg ${
                             modalConfig.type === 'danger' 
                               ? 'bg-red-600 hover:bg-red-500' 
                               : 'bg-neon-cyan text-black hover:bg-neon-cyan/90'
