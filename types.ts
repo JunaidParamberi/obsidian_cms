@@ -57,6 +57,12 @@ export interface Overview {
   }[];
 }
 
+export interface SecuritySettings {
+  allowSignUp: boolean;
+  maintenanceMode: boolean;
+  webhookUrl?: string;
+}
+
 export interface CursorState {
   hidden: boolean;
   variant: 'default' | 'project' | 'text' | 'button';

@@ -1,8 +1,18 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { GalleryItem } from '../../types';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Loader2, FileVideo, FileImage, Check, Star, Zap, Link as LinkIcon, Plus } from 'lucide-react';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { 
+  X, 
+  Upload, 
+  Loader2, 
+  FileVideo, 
+  Star, 
+  Link as LinkIcon, 
+  GripHorizontal,
+  Move,
+  LayoutGrid
+} from 'lucide-react';
 import { api } from '../../services/firebaseService';
 
 interface MediaGalleryProps {
@@ -12,152 +22,185 @@ interface MediaGalleryProps {
   onSetCover: (url: string) => void;
 }
 
+const MediaItem = ({ 
+  item, 
+  idx, 
+  isCover, 
+  onRemove, 
+  onSetCover, 
+  onDragStart,
+  onDragUpdate, 
+  onDragEnd,
+  draggingId
+}: any) => {
+  const dragControls = useDragControls();
+  
+  const isThisDragging = draggingId === item.url;
+
+  return (
+    <motion.div
+      layout
+      drag
+      dragControls={dragControls}
+      dragListener={false}
+      dragSnapToOrigin
+      onDragStart={() => onDragStart(item.url)}
+      onDragEnd={() => onDragEnd()}
+      onDrag={(e, info) => onDragUpdate(idx, info)}
+      className={`relative group aspect-square rounded-xl overflow-hidden border transition-shadow bg-obsidian-bg cursor-pointer ${
+        isThisDragging 
+          ? 'z-50 border-neon-cyan shadow-[0_20px_50px_rgba(0,0,0,0.7)] ring-2 ring-neon-cyan/50' 
+          : 'z-10 border-obsidian-border hover:border-neon-cyan/40 shadow-md'
+      }`}
+      onClick={() => !isThisDragging && onSetCover(item.url)}
+    >
+      {item.type === 'image' ? (
+        <img 
+          src={item.url} 
+          alt="" 
+          className={`w-full h-full object-cover transition-opacity duration-300 pointer-events-none ${isCover ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} 
+        />
+      ) : (
+        <div className="relative w-full h-full bg-obsidian-surface pointer-events-none">
+           <video src={item.url} className={`w-full h-full object-cover transition-opacity ${isCover ? 'opacity-100' : 'opacity-40 group-hover:opacity-100'}`} muted loop autoPlay playsInline />
+           <div className="absolute top-2 right-2 p-1.5 bg-black/60 rounded backdrop-blur-md">
+              <FileVideo size={12} className="text-neon-purple" />
+           </div>
+        </div>
+      )}
+      
+      {/* Interaction Layer */}
+      <div 
+        onPointerDown={(e) => {
+          e.preventDefault();
+          dragControls.start(e);
+        }}
+        className="absolute top-2 left-2 p-2 bg-black/80 text-white rounded-lg cursor-grab active:cursor-grabbing opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity z-30 border border-white/10 shadow-lg"
+      >
+        <GripHorizontal size={14} />
+      </div>
+
+      {isCover && (
+        <div className="absolute bottom-2 left-2 bg-neon-cyan text-black px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter flex items-center gap-1 z-20 shadow-lg border border-white/20">
+           <Star size={8} className="fill-current" /> Cover
+        </div>
+      )}
+
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-30">
+         <button 
+          onClick={(e) => { e.stopPropagation(); onRemove(idx); }}
+          className="p-2 bg-red-600/90 text-white rounded-lg hover:bg-red-500 transition-colors shadow-lg border border-red-400/20"
+        >
+          <X size={12} />
+        </button>
+      </div>
+      
+      {!isCover && !isThisDragging && (
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-black/40 backdrop-blur-[2px]">
+           <span className="bg-neon-cyan/90 text-black px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/20 shadow-xl">
+              Focus Asset
+           </span>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
 const MediaGallery: React.FC<MediaGalleryProps> = ({ items, currentCover, onChange, onSetCover }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'compressing' | 'uploading'>('idle');
+  const containerRef = useRef<HTMLDivElement>(null);
   
-  // URL Input State
+  const [localItems, setLocalItems] = useState<GalleryItem[]>(items);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading'>('idle');
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlType, setUrlType] = useState<'image' | 'video'>('image');
 
-  // Client-side image compression utility
-  const compressImage = (file: File): Promise<Blob | File> => {
-    return new Promise((resolve) => {
-      // Don't compress very small files or non-images
-      if (file.size < 200 * 1024 || !file.type.startsWith('image/')) {
-        return resolve(file);
-      }
-
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          const MAX_WIDTH = 1920;
-          const MAX_HEIGHT = 1920;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                resolve(blob);
-              } else {
-                resolve(file);
-              }
-            },
-            'image/jpeg',
-            0.8
-          );
-        };
-      };
-    });
-  };
-
-  const removeItem = (e: React.MouseEvent, index: number) => {
-    e.stopPropagation();
-    const newItems = [...items];
-    newItems.splice(index, 1);
-    onChange(newItems);
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      await processFiles(Array.from(e.target.files));
+  // Keep local state in sync when external items change, but NOT while dragging
+  useEffect(() => {
+    if (!draggingId) {
+      setLocalItems(items);
     }
+  }, [items, draggingId]);
+
+  const handleDragStart = (id: string) => {
+    setDraggingId(id);
+  };
+
+  const handleDragUpdate = (fromIndex: number, info: any) => {
+    if (!containerRef.current) return;
+    
+    const gridItems = Array.from(containerRef.current.children) as HTMLElement[];
+    const cursorX = info.point.x;
+    const cursorY = info.point.y;
+
+    let toIndex = fromIndex;
+    
+    // Optimized 2D grid distance calculation
+    for (let i = 0; i < gridItems.length; i++) {
+      if (i === fromIndex) continue;
+      // Skip the action buttons at the end
+      if (i >= localItems.length) continue;
+
+      const rect = gridItems[i].getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      
+      const distance = Math.hypot(cursorX - centerX, cursorY - centerY);
+
+      // Tighter threshold for grid swapping to avoid oscillation
+      if (distance < 50) {
+        toIndex = i;
+        break;
+      }
+    }
+
+    if (toIndex !== fromIndex) {
+      const newItems = [...localItems];
+      const [movedItem] = newItems.splice(fromIndex, 1);
+      newItems.splice(toIndex, 0, movedItem);
+      setLocalItems(newItems);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    // Commit the local reorder to parent state
+    onChange(localItems);
+  };
+
+  const removeItem = (index: number) => {
+    const newItems = [...localItems];
+    newItems.splice(index, 1);
+    setLocalItems(newItems);
+    onChange(newItems);
   };
 
   const processFiles = async (files: File[]) => {
     const newItems: GalleryItem[] = [];
-
-    for (const file of files) {
-      const isVideo = file.type.startsWith('video/');
-      const isImage = file.type.startsWith('image/');
-
-      if (!isVideo && !isImage) continue;
-
-      try {
-        let processedFile: File | Blob = file;
-        
-        if (isImage) {
-          setUploadStatus('compressing');
-          processedFile = await compressImage(file);
-        }
-
-        setUploadStatus('uploading');
-        const firebaseUrl = await api.uploadMedia(processedFile as File);
-        
-        newItems.push({
-          type: isVideo ? 'video' : 'image',
-          url: firebaseUrl
-        });
-        
-        if (!currentCover && newItems.length === 1) {
-          onSetCover(firebaseUrl);
-        }
-      } catch (error) {
-        console.error("Cloud Asset Sync Error:", error);
+    setUploadStatus('uploading');
+    try {
+      for (const file of files) {
+        const url = await api.uploadMedia(file);
+        newItems.push({ type: file.type.startsWith('video/') ? 'video' : 'image', url });
       }
+      const updated = [...localItems, ...newItems];
+      setLocalItems(updated);
+      onChange(updated);
+    } finally {
+      setUploadStatus('idle');
     }
-
-    onChange([...items, ...newItems]);
-    setUploadStatus('idle');
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleAddFromUrl = () => {
     if (!urlInput.trim()) return;
-    
-    const newItem: GalleryItem = {
-      type: urlType,
-      url: urlInput.trim()
-    };
-    
-    onChange([...items, newItem]);
-    if (!currentCover) onSetCover(newItem.url);
-    
+    const updated = [...localItems, { type: urlType, url: urlInput.trim() }];
+    setLocalItems(updated);
+    onChange(updated);
     setUrlInput('');
     setShowUrlInput(false);
-  };
-
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const onDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const onDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await processFiles(Array.from(e.dataTransfer.files));
-    }
   };
 
   return (
@@ -167,170 +210,120 @@ const MediaGallery: React.FC<MediaGalleryProps> = ({ items, currentCover, onChan
         multiple 
         accept="image/*,video/*" 
         className="hidden" 
-        ref={fileInputRef}
-        onChange={handleFileSelect}
+        ref={fileInputRef} 
+        onChange={(e) => e.target.files && processFiles(Array.from(e.target.files))} 
       />
       
       <div 
-        className={`relative min-h-[150px] transition-all duration-300 rounded-xl ${
-          isDragging 
-            ? 'bg-neon-lime/5 border-2 border-dashed border-neon-lime' 
-            : 'border border-transparent'
-        }`}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
+        ref={containerRef}
+        className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 relative min-h-[160px] p-1 transition-all ${isDraggingFile ? 'scale-[0.98]' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+        onDragLeave={() => setIsDraggingFile(false)}
+        onDrop={(e) => { e.preventDefault(); setIsDraggingFile(false); if(e.dataTransfer.files) processFiles(Array.from(e.dataTransfer.files)); }}
       >
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          <AnimatePresence>
-            {items.map((item, idx) => {
-              const isCover = item.url === currentCover;
-              return (
-                <motion.div
-                  key={`${idx}-${item.url.substring(item.url.length - 20)}`}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className={`relative group aspect-square rounded-lg overflow-hidden border transition-all bg-black shadow-lg cursor-pointer ${
-                    isCover ? 'border-neon-cyan ring-2 ring-neon-cyan/20' : 'border-obsidian-border hover:border-neon-cyan/40'
-                  }`}
-                  onClick={() => onSetCover(item.url)}
-                >
-                  {item.type === 'image' ? (
-                    <img src={item.url} alt="" className={`w-full h-full object-cover transition-opacity duration-500 ${isCover ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} />
-                  ) : (
-                    <div className="relative w-full h-full bg-obsidian-surface">
-                       <video src={item.url} className={`w-full h-full object-cover transition-opacity ${isCover ? 'opacity-100' : 'opacity-40 group-hover:opacity-100'}`} muted loop autoPlay playsInline />
-                       <div className="absolute top-1 right-1 p-1 bg-black/60 rounded backdrop-blur-sm">
-                          <FileVideo size={10} className="text-neon-purple" />
-                       </div>
-                    </div>
-                  )}
-                  
-                  {isCover && (
-                    <div className="absolute top-2 left-2 bg-neon-cyan text-black px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter flex items-center gap-1 z-10 shadow-lg">
-                       <Star size={10} className="fill-current" /> Cover
-                    </div>
-                  )}
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-20">
-                     <button 
-                      onClick={(e) => removeItem(e, idx)}
-                      className="p-1.5 bg-red-600/90 text-white rounded-md hover:bg-red-500 transition-colors shadow-lg"
-                      title="Purge Asset"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  
-                  {!isCover && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
-                       <span className="bg-neon-cyan/90 text-black px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/20">
-                          Set Cover
-                       </span>
-                    </div>
-                  )}
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-          
-          <div className="flex flex-col gap-3">
+        <AnimatePresence mode="popLayout">
+          {localItems.map((item, idx) => (
+            <MediaItem 
+              key={item.url}
+              item={item} 
+              idx={idx} 
+              isCover={item.url === currentCover}
+              onRemove={removeItem}
+              onSetCover={onSetCover}
+              onDragStart={handleDragStart}
+              onDragUpdate={handleDragUpdate}
+              onDragEnd={handleDragEnd}
+              draggingId={draggingId}
+            />
+          ))}
+        </AnimatePresence>
+        
+        {/* Dynamic Action Zone */}
+        {!draggingId && (
+          <div className="col-span-1 grid grid-rows-2 gap-3 h-full">
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadStatus !== 'idle'}
-              className={`aspect-square border-2 border-dashed rounded-lg flex flex-col gap-2 items-center justify-center transition-all group w-full
-                ${uploadStatus !== 'idle'
-                  ? 'border-neon-lime/50 bg-neon-lime/5 cursor-wait' 
-                  : 'border-obsidian-border hover:border-neon-cyan hover:bg-obsidian-surface'
-                }`}
+              className="group relative border-2 border-dashed border-obsidian-border rounded-xl flex flex-col items-center justify-center hover:border-neon-cyan hover:bg-neon-cyan/5 transition-all overflow-hidden"
             >
-               {uploadStatus !== 'idle' ? (
-                 <div className="flex flex-col items-center gap-1 text-neon-lime px-2 text-center">
-                   <Loader2 size={24} className="animate-spin" />
-                   <span className="block text-[8px] font-mono uppercase">
-                     {uploadStatus === 'compressing' ? 'Optimizing' : 'Syncing'}
-                   </span>
-                 </div>
-               ) : (
-                 <>
-                   <Upload size={18} className="text-obsidian-textMuted group-hover:text-neon-cyan" />
-                   <span className="block text-[10px] font-bold text-white group-hover:text-neon-cyan uppercase">Upload</span>
-                 </>
-               )}
+              {uploadStatus !== 'idle' ? (
+                <Loader2 className="animate-spin text-neon-cyan" size={20} />
+              ) : (
+                <div className="flex flex-col items-center">
+                  <Upload className="text-obsidian-textMuted group-hover:text-neon-cyan group-hover:scale-110 transition-transform" size={20} />
+                  <span className="text-[9px] font-black mt-2 uppercase text-obsidian-textMuted group-hover:text-white">Upload</span>
+                </div>
+              )}
             </button>
             <button 
               onClick={() => setShowUrlInput(!showUrlInput)}
-              className="aspect-square border-2 border-dashed border-obsidian-border rounded-lg flex flex-col gap-2 items-center justify-center hover:border-neon-purple hover:bg-obsidian-surface transition-all group w-full"
+              className={`group border-2 border-dashed border-obsidian-border rounded-xl flex flex-col items-center justify-center transition-all ${
+                showUrlInput ? 'bg-neon-purple/10 border-neon-purple' : 'hover:border-neon-purple hover:bg-neon-purple/5'
+              }`}
             >
-              <LinkIcon size={18} className="text-obsidian-textMuted group-hover:text-neon-purple" />
-              <span className="block text-[10px] font-bold text-white group-hover:text-neon-purple uppercase">Link</span>
+              <LinkIcon className={`transition-colors ${showUrlInput ? 'text-neon-purple' : 'text-obsidian-textMuted group-hover:text-neon-purple'}`} size={18} />
+              <span className={`text-[9px] font-black mt-2 uppercase transition-colors ${showUrlInput ? 'text-white' : 'text-obsidian-textMuted group-hover:text-white'}`}>External</span>
             </button>
           </div>
-        </div>
-        
-        {isDragging && (
-          <div className="absolute inset-0 bg-neon-cyan/10 backdrop-blur-sm rounded-xl flex items-center justify-center z-10 border-2 border-neon-cyan border-dashed">
-             <div className="flex flex-col items-center gap-4 text-neon-cyan">
-                <div className="p-6 rounded-full bg-obsidian-bg/80 border border-neon-cyan">
-                   <Upload size={48} className="animate-bounce" />
-                </div>
-                <span className="text-xl font-bold tracking-widest uppercase text-center px-6 font-mono">Release Assets</span>
-             </div>
+        )}
+
+        {isDraggingFile && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-neon-cyan/5 backdrop-blur-md rounded-2xl border-2 border-dashed border-neon-cyan animate-pulse pointer-events-none">
+            <Move size={48} className="text-neon-cyan mb-2" />
+            <p className="text-neon-cyan font-black text-xs uppercase tracking-widest">Release to Cloud Storage</p>
           </div>
         )}
       </div>
 
-      {/* URL Input Form */}
       <AnimatePresence>
         {showUrlInput && (
           <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden bg-obsidian-card border border-obsidian-border rounded-xl p-4 space-y-4"
+            initial={{ height: 0, opacity: 0, y: -10 }} 
+            animate={{ height: 'auto', opacity: 1, y: 0 }} 
+            exit={{ height: 0, opacity: 0, y: -10 }} 
+            className="bg-obsidian-surface border border-obsidian-border p-5 rounded-2xl space-y-4 shadow-2xl relative overflow-hidden"
           >
-             <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-bold text-neon-purple uppercase tracking-widest flex items-center gap-2">
-                  <LinkIcon size={12} /> External Media Link
-                </h4>
-                <button onClick={() => setShowUrlInput(false)} className="text-obsidian-textMuted hover:text-white">
-                  <X size={14} />
-                </button>
-             </div>
-             <div className="flex gap-2 mb-4">
-                <button 
-                  onClick={() => setUrlType('image')} 
-                  className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded border transition-all ${urlType === 'image' ? 'bg-neon-cyan text-black border-neon-cyan' : 'bg-obsidian-bg text-obsidian-textMuted border-obsidian-border'}`}
-                >
-                  Image
-                </button>
-                <button 
-                  onClick={() => setUrlType('video')} 
-                  className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded border transition-all ${urlType === 'video' ? 'bg-neon-purple text-white border-neon-purple' : 'bg-obsidian-bg text-obsidian-textMuted border-obsidian-border'}`}
-                >
-                  Video
-                </button>
-             </div>
-             <div className="flex gap-2">
+            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+              <LinkIcon size={40} className="text-neon-purple" />
+            </div>
+            
+            <div className="flex gap-2 relative z-10">
+              <button 
+                onClick={() => setUrlType('image')} 
+                className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase border-2 transition-all ${
+                  urlType === 'image' ? 'bg-neon-cyan text-black border-neon-cyan shadow-[0_0_15px_rgba(0,240,255,0.3)]' : 'border-obsidian-border text-obsidian-textMuted hover:border-obsidian-textMuted/50'
+                }`}
+              >
+                Static Image
+              </button>
+              <button 
+                onClick={() => setUrlType('video')} 
+                className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase border-2 transition-all ${
+                  urlType === 'video' ? 'bg-neon-purple text-white border-neon-purple shadow-[0_0_15px_rgba(176,38,255,0.3)]' : 'border-obsidian-border text-obsidian-textMuted hover:border-obsidian-textMuted/50'
+                }`}
+              >
+                Motion Asset
+              </button>
+            </div>
+            
+            <div className="flex gap-2 relative z-10">
+              <div className="flex-1 relative">
+                <LayoutGrid className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-textMuted" size={14} />
                 <input 
-                  type="text" 
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
+                  value={urlInput} 
+                  onChange={(e) => setUrlInput(e.target.value)} 
                   placeholder="https://images.unsplash.com/..." 
-                  className="flex-1 bg-obsidian-bg border border-obsidian-border rounded p-2 text-xs text-white focus:border-neon-purple outline-none"
+                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl pl-9 pr-4 py-3 text-xs text-white outline-none focus:border-neon-purple transition-colors" 
                 />
-                <button 
-                  onClick={handleAddFromUrl}
-                  className="px-4 bg-neon-purple text-white rounded font-bold text-[10px] uppercase hover:bg-neon-purple/90"
-                >
-                  Add
-                </button>
-             </div>
-             <p className="text-[9px] text-obsidian-textMuted font-mono">Supports direct links to JPG, PNG, MP4, and Vimeo/YouTube direct streams.</p>
+              </div>
+              <button 
+                onClick={handleAddFromUrl} 
+                disabled={!urlInput.trim()}
+                className="px-6 bg-neon-purple text-white rounded-xl font-black text-[10px] uppercase hover:bg-white hover:text-black transition-all disabled:opacity-50"
+              >
+                Register URL
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

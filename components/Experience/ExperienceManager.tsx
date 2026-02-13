@@ -10,9 +10,11 @@ import {
   Calendar, 
   CheckCircle2, 
   Loader2, 
-  Database
+  Database,
+  Sparkles
 } from 'lucide-react';
-import { UIContext } from '../../App';
+import { UIContext } from '../../services/uiContext';
+import { geminiService } from '../../services/geminiService';
 
 interface ExperienceManagerProps {
   experience: Experience[];
@@ -26,6 +28,7 @@ const ExperienceManager: React.FC<ExperienceManagerProps> = ({ experience, onUpd
   const [editingId, setEditingId] = useState<string | null>(null);
   const [localExperience, setLocalExperience] = useState<Experience[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAILoading, setIsAILoading] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalExperience(JSON.parse(JSON.stringify(experience)));
@@ -38,6 +41,18 @@ const ExperienceManager: React.FC<ExperienceManagerProps> = ({ experience, onUpd
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
+
+  const handleAIWrite = async (item: Experience) => {
+    setIsAILoading(item.id);
+    try {
+      const result = await geminiService.generateText(`Write a professional 2-sentence description for the role: "${item.role}" at company: "${item.company}". Focus on achievements.`);
+      handleEditField(item.id, 'description', result);
+    } catch (e) {
+      ui?.notify("AI Content Generation Failed", "error");
+    } finally {
+      setIsAILoading(null);
+    }
+  };
 
   const handleDeleteTrigger = (item: Experience) => {
     ui?.confirm({
@@ -141,8 +156,14 @@ const ExperienceManager: React.FC<ExperienceManagerProps> = ({ experience, onUpd
                       </button>
                    </div>
                 </div>
-                <div className="mt-6">
-                   {editingId === item.id ? <textarea value={item.description} onChange={(e) => handleEditField(item.id, 'description', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border text-obsidian-text p-4 h-40 rounded-xl outline-none resize-none text-sm leading-relaxed" /> : <p className="text-obsidian-text/80 text-sm leading-relaxed border-l-2 border-obsidian-border pl-4">{item.description}</p>}
+                <div className="mt-6 relative group/area">
+                   {editingId === item.id && (
+                     <button onClick={() => handleAIWrite(item)} disabled={isAILoading === item.id} className="absolute right-4 top-4 p-2 bg-obsidian-surface border border-neon-purple/30 rounded-lg text-neon-purple hover:bg-neon-purple hover:text-white transition-all z-20 overflow-hidden shadow-lg">
+                       {isAILoading === item.id ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                       {isAILoading === item.id && <div className="absolute inset-0 shimmer-ai pointer-events-none" />}
+                     </button>
+                   )}
+                   {editingId === item.id ? <textarea value={item.description} onChange={(e) => handleEditField(item.id, 'description', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border text-obsidian-text p-4 h-40 rounded-xl outline-none resize-none text-sm leading-relaxed focus:border-neon-purple" /> : <p className="text-obsidian-text/80 text-sm leading-relaxed border-l-2 border-obsidian-border pl-4">{item.description}</p>}
                 </div>
               </motion.div>
             ))}

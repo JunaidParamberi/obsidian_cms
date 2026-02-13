@@ -12,7 +12,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Project, Experience, Client, Overview } from '../types';
+import { Project, Experience, Client, Overview, SecuritySettings } from '../types';
 
 const COLLECTIONS = {
   PROJECTS: 'projects',
@@ -22,14 +22,39 @@ const COLLECTIONS = {
 };
 
 export const api = {
+  // SECURITY & GLOBAL SETTINGS
+  getSecuritySettings: async (): Promise<SecuritySettings> => {
+    try {
+      const docRef = doc(db, COLLECTIONS.SETTINGS, 'security');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data() as SecuritySettings;
+      }
+      // Default fallback
+      return { allowSignUp: true, maintenanceMode: false };
+    } catch (e) {
+      console.error("Firebase getSecuritySettings error:", e);
+      return { allowSignUp: true, maintenanceMode: false };
+    }
+  },
+
+  updateSecuritySettings: async (settings: SecuritySettings): Promise<void> => {
+    await setDoc(doc(db, COLLECTIONS.SETTINGS, 'security'), settings, { merge: true });
+  },
+
   // PROFILE OVERVIEW API
   getOverview: async (): Promise<Overview | null> => {
-    const docRef = doc(db, COLLECTIONS.SETTINGS, 'profile');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return docSnap.data() as Overview;
+    try {
+      const docRef = doc(db, COLLECTIONS.SETTINGS, 'profile');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data() as Overview;
+      }
+      return null;
+    } catch (e) {
+      console.error("Firebase getOverview error:", e);
+      throw e;
     }
-    return null;
   },
 
   saveOverview: async (overview: Overview): Promise<void> => {
@@ -37,19 +62,24 @@ export const api = {
   },
 
   getProjects: async (): Promise<Project[]> => {
-    const q = query(collection(db, COLLECTIONS.PROJECTS));
-    const querySnapshot = await getDocs(q);
-    
-    const projects = querySnapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    } as Project));
+    try {
+      const q = query(collection(db, COLLECTIONS.PROJECTS));
+      const querySnapshot = await getDocs(q);
+      
+      const projects = querySnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      } as Project));
 
-    return projects.sort((a, b) => {
-      const orderA = a.order ?? 999;
-      const orderB = b.order ?? 999;
-      return orderA - orderB;
-    });
+      return projects.sort((a, b) => {
+        const orderA = a.order ?? 999;
+        const orderB = b.order ?? 999;
+        return orderA - orderB;
+      });
+    } catch (e) {
+      console.error("Firebase getProjects error:", e);
+      throw e;
+    }
   },
 
   createProject: async (project: Project): Promise<Project> => {
@@ -63,7 +93,7 @@ export const api = {
 
   updateProject: async (project: Project): Promise<Project> => {
     const docRef = doc(db, COLLECTIONS.PROJECTS, project.id);
-    await updateDoc(docRef, { ...project });
+    await setDoc(docRef, { ...project }, { merge: true });
     return project;
   },
 
@@ -91,9 +121,12 @@ export const api = {
   },
 
   saveExperience: async (experiences: Experience[]): Promise<Experience[]> => {
-    for (const exp of experiences) {
-      await setDoc(doc(db, COLLECTIONS.EXPERIENCE, exp.id), exp);
-    }
+    const batch = writeBatch(db);
+    experiences.forEach(exp => {
+      const docRef = doc(db, COLLECTIONS.EXPERIENCE, exp.id);
+      batch.set(docRef, exp, { merge: true });
+    });
+    await batch.commit();
     return experiences;
   },
 
@@ -112,7 +145,8 @@ export const api = {
   },
 
   saveClient: async (client: Client): Promise<Client> => {
-    await setDoc(doc(db, COLLECTIONS.CLIENTS, client.id), client);
+    const docRef = doc(db, COLLECTIONS.CLIENTS, client.id);
+    await setDoc(docRef, client, { merge: true });
     return client;
   },
 

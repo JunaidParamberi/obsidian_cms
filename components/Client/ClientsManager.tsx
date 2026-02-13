@@ -3,7 +3,8 @@ import React, { useState, useContext, useMemo } from 'react';
 import { Client } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Plus, Trash2, Edit2, Building2, UserCircle, Calendar, Save, X, Loader2, Sparkles } from 'lucide-react';
-import { UIContext } from '../../App';
+// Fix: Import UIContext from its dedicated service file instead of App.tsx
+import { UIContext } from '../../services/uiContext';
 
 interface ClientsManagerProps {
   clients: Client[];
@@ -45,6 +46,7 @@ const ClientsManager: React.FC<ClientsManagerProps> = ({ clients, onSave, onDele
   };
 
   const handleDeleteTrigger = (client: Client) => {
+    // Fix: Proper type checking for UIContext ensures confirm property is recognized
     ui?.confirm({
       title: "Purge Partnership Record?",
       message: `Warning: This will permanently remove ${client.name} from your global client roster.`,
