@@ -50,7 +50,8 @@ const Overview: React.FC<OverviewProps> = ({ projects, experience }) => {
     }, {} as Record<string, number>);
 
     return Object.entries(tagCounts)
-     .sort(([, a], [, b]) => Number(b) - Number(a))
+      // Fix: Cast values to number to satisfy TypeScript arithmetic operation requirements in browser environment
+      .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 5)
       .map(([name, count]) => ({ name, count }));
   }, [projects]);

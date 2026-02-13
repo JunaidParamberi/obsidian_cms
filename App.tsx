@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { Project, Experience, Client, ViewState, Overview } from './types';
 import { api } from './services/firebaseService';
+import { auth } from './services/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import DashboardOverview from './components/Dashboard/Overview';
 import ProjectEditor from './components/Project/ProjectEditor';
 import ExperienceManager from './components/Experience/ExperienceManager';
@@ -37,11 +39,8 @@ interface UIContextType {
 export const UIContext = createContext<UIContextType | null>(null);
 
 const App: React.FC = () => {
-  // Initialize authentication state from localStorage
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('obsidian_auth_session') === 'active';
-  });
-  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   
   const [projects, setProjects] = useState<Project[]>([]);
@@ -54,7 +53,7 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'loading' | 'error'} | null>(null);
 
-  const reorderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reorderTimeoutRef = useRef<any>(null);
   const lastSyncedProjectsRef = useRef<Project[]>([]);
 
   const [modalConfig, setModalConfig] = useState<{ 
@@ -65,14 +64,14 @@ const App: React.FC = () => {
     onConfirm: () => void; 
   } | null>(null);
 
-  // Sync auth state to localStorage whenever it changes
+  // Listen to real Firebase Auth changes for production mode
   useEffect(() => {
-    if (isAuthenticated) {
-      localStorage.setItem('obsidian_auth_session', 'active');
-    } else {
-      localStorage.removeItem('obsidian_auth_session');
-    }
-  }, [isAuthenticated]);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+      setIsAuthChecking(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -170,7 +169,7 @@ const App: React.FC = () => {
         setTimeout(() => showNotification("Cloud Database Updated Successfully"), 100);
       } catch (e) {
         console.error("Reorder persistence failed:", e);
-        showNotification("Cloud Reorder Sync Failed", 'error');
+        showNotification("Cloud reorder Sync Failed", 'error');
       }
     }, 2000); 
   };
@@ -238,11 +237,10 @@ const App: React.FC = () => {
   const handleLogout = () => {
     triggerConfirm({
       title: "Confirm Sign Out",
-      message: "Are you sure you want to end your current session?",
+      message: "Are you sure you want to end your current secure session?",
       type: 'info',
-      onConfirm: () => {
-        setIsAuthenticated(false);
-        localStorage.removeItem('obsidian_auth_session');
+      onConfirm: async () => {
+        await signOut(auth);
       }
     });
   };
@@ -275,6 +273,14 @@ const App: React.FC = () => {
     </button>
   );
 
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-obsidian-bg flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-neon-purple" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Login onLogin={() => setIsAuthenticated(true)} />;
   }
@@ -282,7 +288,6 @@ const App: React.FC = () => {
   return (
     <UIContext.Provider value={{ confirm: triggerConfirm, notify: showNotification }}>
       <div className="flex h-screen overflow-hidden bg-obsidian-bg text-obsidian-text font-sans">
-        {/* Overlay for mobile menu */}
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div 
@@ -353,7 +358,7 @@ const App: React.FC = () => {
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <div className="flex-1 px-4 hidden sm:block">
-               <span className="text-[10px] font-mono text-obsidian-textMuted uppercase">Session: {Math.random().toString(36).substring(7).toUpperCase()}</span>
+               <span className="text-[10px] font-mono text-obsidian-textMuted uppercase">Session: {auth.currentUser?.email?.split('@')[0].toUpperCase()}</span>
             </div>
             <div className="flex items-center gap-2 md:gap-4">
               <button className="relative p-2 text-obsidian-text hover:text-white transition-colors">
