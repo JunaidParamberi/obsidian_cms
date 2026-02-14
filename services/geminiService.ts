@@ -9,9 +9,9 @@ Never use fluff. Focus on problem-solving and measurable results.`;
 export const geminiService = {
   async generateText(prompt: string): Promise<string> {
     try {
-      if (!process.env.API_KEY) throw new Error("API Key Missing");
+      if (!process.env.GEMINI_API_KEY) throw new Error("API Key Missing");
       
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
