@@ -28,6 +28,7 @@ export interface Project {
   gallery?: GalleryItem[];
   gridArea?: string; 
   order?: number; // Added for persistent sorting
+  aiContext?: string; // Context provided by user for AI generation
 }
 
 export interface Experience {

@@ -131,6 +131,8 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
   const [searchTerm, setSearchTerm] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showAIPrompt, setShowAIPrompt] = useState(false);
+  const [aiPromptValue, setAIPromptValue] = useState('');
   const gridRef = useRef<HTMLDivElement>(null);
 
   const originalProject = useMemo(() => projects.find(p => p.id === selectedId) || null, [selectedId, projects]);
@@ -166,9 +168,25 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
 
   const handleAIWriteField = async (field: string, prompt: string) => {
     if (!localProject?.title) return ui?.notify("Project Title Required", "error");
+    
+    // If no context, ask for it first
+    if (!localProject.aiContext) {
+      setAIPromptValue('');
+      setShowAIPrompt(true);
+      // We'll need a way to resume this specific field write after context is provided
+      // For simplicity, let's just ask them to use Magic Fill or provide context first
+      return ui?.notify("Please provide project context first via Magic Fill", "info");
+    }
+
     setIsAILoading(field);
     try {
-      const result = await geminiService.generateText(`Project: "${localProject.title}". Role: "${localProject.category}". Task: ${prompt}`);
+      const result = await geminiService.generateText(
+        `Project: "${localProject.title}". 
+         Role: "${localProject.category}". 
+         Context: "${localProject.aiContext}". 
+         Task: ${prompt}. 
+         Requirement: Keep it very short and punchy.`
+      );
       updateField(field, result);
       ui?.notify("AI Content Generated");
     } catch (e) {
@@ -180,9 +198,20 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
 
   const handleMagicFill = async () => {
     if (!localProject?.title) return ui?.notify("Project Title Required", "error");
+    setAIPromptValue(localProject.aiContext || '');
+    setShowAIPrompt(true);
+  };
+
+  const confirmMagicFill = async () => {
+    if (!aiPromptValue.trim()) return ui?.notify("Context Required", "error");
     setIsAILoading('magic');
+    setShowAIPrompt(false);
+    
+    // Save context to project
+    updateField('aiContext', aiPromptValue);
+
     try {
-      const data = await geminiService.magicFillProject(localProject.title, localProject.category);
+      const data = await geminiService.magicFillProject(localProject!.title, localProject!.category, aiPromptValue);
       updateField('description', data.description);
       updateField('narrative.challenge', data.challenge);
       updateField('narrative.execution', data.execution);
@@ -246,7 +275,65 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
 
   return (
     <div className="flex flex-col h-full">
-      <AnimatePresence>{showExitConfirm && (<div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl"><motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md bg-obsidian-surface border border-neon-purple/30 p-8 rounded-2xl text-center shadow-2xl"><AlertTriangle size={48} className="text-neon-purple mx-auto mb-6" /><h3 className="text-xl font-bold text-white uppercase mb-2">Unsaved Meta</h3><p className="text-obsidian-textMuted text-sm font-mono mb-8 leading-relaxed">Changes to "{localProject?.title}" will be lost.</p><div className="flex flex-col gap-3"><button onClick={async () => { if(await handleSave(true)) { setShowExitConfirm(false); setViewMode('grid'); } }} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-neon-lime text-black rounded-xl font-black uppercase text-[10px] tracking-widest"><Save size={16} /> Save & Proceed</button><button onClick={() => { onDirtyChange?.(false); setShowExitConfirm(false); setViewMode('grid'); }} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-red-600/10 border border-red-500/30 text-red-500 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white"><Trash2 size={16} /> Discard Changes</button><button onClick={() => setShowExitConfirm(false)} className="w-full px-6 py-4 bg-obsidian-bg border border-obsidian-border text-white rounded-xl font-black uppercase text-[10px] tracking-widest">Stay</button></div></motion.div></div>)}</AnimatePresence>
+      <AnimatePresence>
+        {showExitConfirm && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md bg-obsidian-surface border border-neon-purple/30 p-8 rounded-2xl text-center shadow-2xl">
+              <AlertTriangle size={48} className="text-neon-purple mx-auto mb-6" />
+              <h3 className="text-xl font-bold text-white uppercase mb-2">Unsaved Meta</h3>
+              <p className="text-obsidian-textMuted text-sm font-mono mb-8 leading-relaxed">Changes to "{localProject?.title}" will be lost.</p>
+              <div className="flex flex-col gap-3">
+                <button onClick={async () => { if(await handleSave(true)) { setShowExitConfirm(false); setViewMode('grid'); } }} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-neon-lime text-black rounded-xl font-black uppercase text-[10px] tracking-widest"><Save size={16} /> Save & Proceed</button>
+                <button onClick={() => { onDirtyChange?.(false); setShowExitConfirm(false); setViewMode('grid'); }} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-red-600/10 border border-red-500/30 text-red-500 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white"><Trash2 size={16} /> Discard Changes</button>
+                <button onClick={() => setShowExitConfirm(false)} className="w-full px-6 py-4 bg-obsidian-bg border border-obsidian-border text-white rounded-xl font-black uppercase text-[10px] tracking-widest">Stay</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showAIPrompt && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-lg bg-obsidian-surface border border-neon-purple/30 p-8 rounded-2xl shadow-2xl">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-neon-purple/10 rounded-xl">
+                  <BrainCircuit size={32} className="text-neon-purple" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white uppercase">Magic Intelligence</h3>
+                  <p className="text-obsidian-textMuted text-[10px] font-mono uppercase tracking-widest">Contextual Case Study Generation</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4 mb-8">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">What is this project about?</label>
+                <textarea 
+                  autoFocus
+                  value={aiPromptValue}
+                  onChange={(e) => setAIPromptValue(e.target.value)}
+                  placeholder="e.g. A high-end e-commerce platform for luxury watches built with Next.js and Framer Motion..."
+                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-40 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed"
+                />
+                <p className="text-[9px] text-obsidian-textMuted italic">AI will generate short, punchy descriptions for Challenge, Execution, and Outcome based on your input.</p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button 
+                  onClick={confirmMagicFill}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-neon-purple text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-neon-purple/20 hover:bg-white hover:text-black transition-all"
+                >
+                  <Sparkles size={16} /> Generate Case Study
+                </button>
+                <button 
+                  onClick={() => { setShowAIPrompt(false); setAIPromptValue(''); }}
+                  className="px-8 py-4 bg-obsidian-bg border border-obsidian-border text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-obsidian-border transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       
       <div className="flex items-center justify-between mb-6 bg-obsidian-bg sticky top-0 z-30 py-4 border-b border-obsidian-border">
         <div className="flex items-center gap-6">
@@ -261,21 +348,81 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
           {/* Identity Section */}
           <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-8 space-y-8 shadow-2xl">
             <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3 border-b border-obsidian-border pb-6"><Settings2 size={18} className="text-neon-cyan" /> Identity</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Name</label><input value={localProject?.title || ''} onChange={(e) => updateField('title', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" /></div>
               <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Type</label><input value={localProject?.category || ''} onChange={(e) => updateField('category', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" /></div>
               <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Segment</label><select value={localProject?.filterCategory} onChange={(e) => updateField('filterCategory', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm outline-none focus:border-neon-cyan cursor-pointer transition-all"><option value="coding">Software</option><option value="graphic">Graphic</option><option value="motion">Motion</option><option value="photo-video">Photo</option></select></div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Visibility</label>
+                <button 
+                  onClick={() => updateField('featured', !localProject?.featured)}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${localProject?.featured ? 'bg-neon-lime/10 border-neon-lime text-neon-lime' : 'bg-obsidian-bg border-obsidian-border text-obsidian-textMuted'}`}
+                >
+                  <span className="text-xs font-bold uppercase tracking-widest">{localProject?.featured ? 'Featured' : 'Standard'}</span>
+                  <Star size={14} className={localProject?.featured ? 'fill-neon-lime' : ''} />
+                </button>
+              </div>
             </div>
-            <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Summary</label><AIWriterButton isLoading={isAILoading === 'description'} onClick={() => handleAIWriteField('description', 'Write a one-paragraph summary.')} /><textarea value={localProject?.description || ''} onChange={(e) => updateField('description', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-28 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
+            <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Summary</label><AIWriterButton isLoading={isAILoading === 'description'} onClick={() => handleAIWriteField('description', 'Write a short project summary (max 2 sentences).')} /><textarea value={localProject?.description || ''} onChange={(e) => updateField('description', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-28 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
           </div>
 
           {/* Case Narrative Section */}
           <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-8 space-y-8 shadow-2xl">
              <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3 border-b border-obsidian-border pb-6"><Wand2 size={18} className="text-neon-purple" /> Case Narrative</h3>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Target size={12} className="text-neon-pink" /> Challenge</label><AIWriterButton isLoading={isAILoading === 'narrative.challenge'} onClick={() => handleAIWriteField('narrative.challenge', 'Explain the core design/technical problem.')} /><textarea value={localProject?.narrative?.challenge || ''} onChange={(e) => updateField('narrative.challenge', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-48 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
-                <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Cpu size={12} className="text-neon-cyan" /> Execution</label><AIWriterButton isLoading={isAILoading === 'narrative.execution'} onClick={() => handleAIWriteField('narrative.execution', 'Explain the technical process and tools used.')} /><textarea value={localProject?.narrative?.execution || ''} onChange={(e) => updateField('narrative.execution', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-48 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
-                <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><MessageSquareQuote size={12} className="text-neon-lime" /> Outcome</label><AIWriterButton isLoading={isAILoading === 'narrative.result'} onClick={() => handleAIWriteField('narrative.result', 'Explain the final success and impact.')} /><textarea value={localProject?.narrative?.result || ''} onChange={(e) => updateField('narrative.result', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-48 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
+                <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Target size={12} className="text-neon-pink" /> Challenge</label><AIWriterButton isLoading={isAILoading === 'narrative.challenge'} onClick={() => handleAIWriteField('narrative.challenge', 'Write a short, punchy explanation of the core challenge.')} /><textarea value={localProject?.narrative?.challenge || ''} onChange={(e) => updateField('narrative.challenge', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-48 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
+                <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><Cpu size={12} className="text-neon-cyan" /> Execution</label><AIWriterButton isLoading={isAILoading === 'narrative.execution'} onClick={() => handleAIWriteField('narrative.execution', 'Write a brief overview of the technical process and tools.')} /><textarea value={localProject?.narrative?.execution || ''} onChange={(e) => updateField('narrative.execution', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-48 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
+                <div className="space-y-2 relative"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono flex items-center gap-2"><MessageSquareQuote size={12} className="text-neon-lime" /> Outcome</label><AIWriterButton isLoading={isAILoading === 'narrative.result'} onClick={() => handleAIWriteField('narrative.result', 'Write a quick summary of the final success and impact.')} /><textarea value={localProject?.narrative?.result || ''} onChange={(e) => updateField('narrative.result', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-48 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed" /></div>
+             </div>
+          </div>
+
+          {/* Design Specs Section */}
+          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-8 space-y-8 shadow-2xl">
+             <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3 border-b border-obsidian-border pb-6"><Layers size={18} className="text-neon-lime" /> Design Specs</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest flex items-center gap-2">Typography</label>
+                  <input 
+                    value={localProject?.specs?.typography || ''} 
+                    onChange={(e) => updateField('specs.typography', e.target.value)} 
+                    placeholder="e.g. Inter, Playfair Display"
+                    className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" 
+                  />
+                </div>
+                <div className="space-y-4">
+                  <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest flex items-center gap-2">Color Palette</label>
+                  <div className="flex flex-wrap gap-3">
+                    {localProject?.specs?.colors?.map((color, idx) => (
+                      <div key={idx} className="group relative">
+                        <input 
+                          type="color" 
+                          value={color} 
+                          onChange={(e) => {
+                            const newColors = [...(localProject?.specs?.colors || [])];
+                            newColors[idx] = e.target.value;
+                            updateField('specs.colors', newColors);
+                          }}
+                          className="w-10 h-10 rounded-lg border border-obsidian-border cursor-pointer bg-transparent overflow-hidden"
+                        />
+                        <button 
+                          onClick={() => {
+                            const newColors = localProject?.specs?.colors?.filter((_, i) => i !== idx);
+                            updateField('specs.colors', newColors);
+                          }}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        >
+                          <X size={8} />
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      onClick={() => updateField('specs.colors', [...(localProject?.specs?.colors || []), '#000000'])}
+                      className="w-10 h-10 rounded-lg border border-dashed border-obsidian-border flex items-center justify-center text-obsidian-textMuted hover:border-neon-cyan hover:text-neon-cyan transition-all"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
              </div>
           </div>
 

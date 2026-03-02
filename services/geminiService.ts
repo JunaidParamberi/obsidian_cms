@@ -9,9 +9,9 @@ Never use fluff. Focus on problem-solving and measurable results.`;
 export const geminiService = {
   async generateText(prompt: string): Promise<string> {
     try {
-      if (!process.env.GEMINI_API_KEY) throw new Error("API Key Missing");
+      if (!process.env.API_KEY) throw new Error("API Key Missing");
       
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -27,24 +27,32 @@ export const geminiService = {
     }
   },
 
-  async magicFillProject(title: string, category: string) {
+  async magicFillProject(title: string, category: string, context: string) {
     try {
       if (!process.env.API_KEY) throw new Error("API Key Missing");
 
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Generate a full case study for a project titled "${title}" in the category "${category}".`,
+        contents: `Generate a concise case study for a project titled "${title}" in the category "${category}".
+        User Context: "${context}"
+        
+        Requirements:
+        - Description: Max 2 sentences.
+        - Challenge: Short, punchy explanation of the problem.
+        - Execution: Brief overview of the process/tools.
+        - Outcome: Quick summary of the result.
+        - Tags: 6 relevant technical tags.`,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              description: { type: Type.STRING, description: "One-paragraph project summary" },
-              challenge: { type: Type.STRING, description: "Technical/creative challenges faced" },
-              execution: { type: Type.STRING, description: "Tools and process used" },
-              result: { type: Type.STRING, description: "Outcome and success metrics" },
+              description: { type: Type.STRING, description: "Short project summary (max 2 sentences)" },
+              challenge: { type: Type.STRING, description: "Concise challenge text" },
+              execution: { type: Type.STRING, description: "Brief execution text" },
+              result: { type: Type.STRING, description: "Short outcome text" },
               tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "6 technical tags" }
             },
             required: ["description", "challenge", "execution", "result", "tags"]
