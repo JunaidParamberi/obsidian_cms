@@ -10,13 +10,14 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "lucide-react": "^0.562.0",
-    "framer-motion": "^12.23.26",
-    "react-dom": "^19.2.3",
-    "react": "^19.2.3",
-    "recharts": "^3.6.0",
+    "@google/genai": "^1.41.0",
     "firebase": "^12.7.0",
-    "@google/genai": "^1.41.0"
+    "framer-motion": "^12.23.26",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.13.1",
+    "recharts": "^3.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

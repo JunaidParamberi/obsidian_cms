@@ -212,6 +212,18 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
 
     try {
       const data = await geminiService.magicFillProject(localProject!.title, localProject!.category, aiPromptValue);
+      
+      // Optionally refine core identity if AI suggests better naming or grid
+      if (data.title && (!localProject?.title || localProject.title.toLowerCase() === 'untitled')) {
+        updateField('title', data.title);
+      }
+      if (data.category && (!localProject?.category || ['new', ''].includes(localProject.category.toLowerCase()))) {
+        updateField('category', data.category);
+      }
+      if (data.gridSystem && !localProject?.specs?.grid) {
+        updateField('specs.grid', data.gridSystem);
+      }
+
       updateField('description', data.description);
       updateField('narrative.challenge', data.challenge);
       updateField('narrative.execution', data.execution);
@@ -266,7 +278,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
       <div className="flex flex-col h-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-obsidian-surface border border-obsidian-border p-6 rounded-2xl gap-4 shadow-xl">
           <div><h2 className="text-xl font-bold text-white flex items-center gap-3"><FolderPlus className="text-neon-cyan" size={24} /> Visual Vault</h2><p className="text-[10px] text-obsidian-textMuted font-mono mt-1 uppercase tracking-widest flex items-center gap-2"><Zap size={10} className="text-neon-lime" /> Ordering System Active</p></div>
-          <div className="flex flex-col sm:flex-row gap-3"><div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-textMuted" size={14} /><input placeholder="Filter Projects..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl pl-10 pr-4 py-3 text-xs text-white focus:border-neon-purple outline-none shadow-inner" /></div><button onClick={async () => { setIsCreating(true); try { const id = `proj_${Date.now()}`; await onAdd({ id, title: 'Untitled', category: 'New', filterCategory: 'coding', image: '', description: '', tags: [], specs: { typography: '', colors: [], grid: '' }, narrative: { challenge: '', execution: '', result: '' }, gallery: [] }); setSelectedId(id); setViewMode('edit'); } finally { setIsCreating(false); } }} disabled={isCreating} className="px-6 py-3 bg-neon-purple text-black font-black rounded-xl hover:bg-white transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95">{isCreating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} />}<span className="text-[10px] uppercase tracking-widest">New Deployment</span></button></div>
+          <div className="flex flex-col sm:flex-row gap-3"><div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-textMuted" size={14} /><input placeholder="Filter Projects..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl pl-10 pr-4 py-3 text-xs text-white focus:border-neon-purple outline-none shadow-inner" /></div><button onClick={async () => { setIsCreating(true); try { const id = `proj_${Date.now()}`; await onAdd({ id, title: 'Untitled', category: 'New', filterCategory: 'coding', image: '', description: '', link: '', tags: [], specs: { typography: '', colors: [], grid: '' }, narrative: { challenge: '', execution: '', result: '' }, gallery: [] }); setSelectedId(id); setViewMode('edit'); } finally { setIsCreating(false); } }} disabled={isCreating} className="px-6 py-3 bg-neon-purple text-black font-black rounded-xl hover:bg-white transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95">{isCreating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} />}<span className="text-[10px] uppercase tracking-widest">New Deployment</span></button></div>
         </div>
         <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20"><AnimatePresence mode="popLayout">{filtered.map((p) => (<ProjectCardItem key={p.id} project={p} ui={ui} isDragging={draggingId === p.id} onSelect={() => { setSelectedId(p.id); setViewMode('edit'); }} onDelete={onDelete} onDragUpdate={handleDragUpdate} setDraggingId={setDraggingId} />))}</AnimatePresence></div>
       </div>
@@ -305,15 +317,25 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
               </div>
               
               <div className="space-y-4 mb-8">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">What is this project about?</label>
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">
+                  Brief the AI like a client
+                </label>
                 <textarea 
                   autoFocus
                   value={aiPromptValue}
                   onChange={(e) => setAIPromptValue(e.target.value)}
-                  placeholder="e.g. A high-end e-commerce platform for luxury watches built with Next.js and Framer Motion..."
+                  placeholder={[
+                    'Who is the client / brand and industry?',
+                    'What kind of project is this (product, website, brand, motion, system, etc.)?',
+                    'What was the main business goal or problem?',
+                    'Which platforms and grid or layout do you use (e.g. 12-col responsive, dashboard, broadcast 16:9)?',
+                    'What tools/stack did you use and what result did you achieve?'
+                  ].join(' ')}
                   className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-5 text-white h-40 text-sm focus:border-neon-purple outline-none transition-all resize-none leading-relaxed"
                 />
-                <p className="text-[9px] text-obsidian-textMuted italic">AI will generate short, punchy descriptions for Challenge, Execution, and Outcome based on your input.</p>
+                <p className="text-[9px] text-obsidian-textMuted italic">
+                  AI will use this mini-brief to tighten the project name, type, grid choice, summary, narrative, and technical tags.
+                </p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -347,19 +369,85 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
       <div className="flex-1 overflow-y-auto space-y-8 pb-24 custom-scrollbar pr-1">
           {/* Identity Section */}
           <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-8 space-y-8 shadow-2xl">
-            <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3 border-b border-obsidian-border pb-6"><Settings2 size={18} className="text-neon-cyan" /> Identity</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-              <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Name</label><input value={localProject?.title || ''} onChange={(e) => updateField('title', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" /></div>
-              <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Type</label><input value={localProject?.category || ''} onChange={(e) => updateField('category', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" /></div>
+            <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3 border-b border-obsidian-border pb-6"><Settings2 size={18} className="text-neon-cyan" /> Identity & Specs</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Project Name</label><input value={localProject?.title || ''} onChange={(e) => updateField('title', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" /></div>
+              <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Project Type</label><input value={localProject?.category || ''} onChange={(e) => updateField('category', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" /></div>
               <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Segment</label><select value={localProject?.filterCategory} onChange={(e) => updateField('filterCategory', e.target.value)} className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm outline-none focus:border-neon-cyan cursor-pointer transition-all"><option value="coding">Software</option><option value="graphic">Graphic</option><option value="motion">Motion</option><option value="photo-video">Photo</option></select></div>
+              
               <div className="space-y-2"><label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Project Link</label><input value={localProject?.link || ''} onChange={(e) => updateField('link', e.target.value)} placeholder="https://..." className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" /></div>
+              
               <div className="space-y-2">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Visibility</label>
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Grid System</label>
+                <select 
+                  value={localProject?.specs?.grid || ''} 
+                  onChange={(e) => updateField('specs.grid', e.target.value)} 
+                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm outline-none focus:border-neon-cyan cursor-pointer transition-all"
+                >
+                  <option value="">Select Grid...</option>
+                  <option value="12-Col Responsive">12-Col Responsive</option>
+                  <option value="A4 Print">A4 Print</option>
+                  <option value="Broadcast Safe 16:9">Broadcast Safe 16:9</option>
+                  <option value="Flexible Masonry">Flexible Masonry</option>
+                  <option value="Golden Ratio">Golden Ratio</option>
+                  <option value="Dashboard 12-Col">Dashboard 12-Col</option>
+                  <option value="No-Grid">No-Grid</option>
+                  <option value="Multi-format">Multi-format</option>
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Typography / Font</label>
+                <input 
+                  value={localProject?.specs?.typography || ''} 
+                  onChange={(e) => updateField('specs.typography', e.target.value)} 
+                  placeholder="e.g. Inter, Playfair Display"
+                  className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Color Palette</label>
+                <div className="flex flex-wrap gap-2 p-2 bg-obsidian-bg border border-obsidian-border rounded-xl min-h-[54px] items-center">
+                  {localProject?.specs?.colors?.map((color, idx) => (
+                    <div key={idx} className="group relative">
+                      <input 
+                        type="color" 
+                        value={color} 
+                        onChange={(e) => {
+                          const newColors = [...(localProject?.specs?.colors || [])];
+                          newColors[idx] = e.target.value;
+                          updateField('specs.colors', newColors);
+                        }}
+                        className="w-8 h-8 rounded-lg border border-obsidian-border cursor-pointer bg-transparent overflow-hidden"
+                      />
+                      <button 
+                        onClick={() => {
+                          const newColors = localProject?.specs?.colors?.filter((_, i) => i !== idx);
+                          updateField('specs.colors', newColors);
+                        }}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      >
+                        <X size={8} />
+                      </button>
+                    </div>
+                  ))}
+                  <button 
+                    onClick={() => updateField('specs.colors', [...(localProject?.specs?.colors || []), '#000000'])}
+                    className="w-8 h-8 rounded-lg border border-dashed border-obsidian-border flex items-center justify-center text-obsidian-textMuted hover:border-neon-cyan hover:text-neon-cyan transition-all"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Featuring</label>
                 <button 
                   onClick={() => updateField('featured', !localProject?.featured)}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${localProject?.featured ? 'bg-neon-lime/10 border-neon-lime text-neon-lime' : 'bg-obsidian-bg border-obsidian-border text-obsidian-textMuted'}`}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${localProject?.featured ? 'bg-neon-lime/10 border-neon-lime text-neon-lime shadow-[0_0_15px_rgba(57,255,20,0.1)]' : 'bg-obsidian-bg border-obsidian-border text-obsidian-textMuted'}`}
                 >
-                  <span className="text-xs font-bold uppercase tracking-widest">{localProject?.featured ? 'Featured' : 'Standard'}</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">{localProject?.featured ? 'Featured Project' : 'Standard Listing'}</span>
                   <Star size={14} className={localProject?.featured ? 'fill-neon-lime' : ''} />
                 </button>
               </div>
@@ -377,55 +465,6 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
              </div>
           </div>
 
-          {/* Design Specs Section */}
-          <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-8 space-y-8 shadow-2xl">
-             <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3 border-b border-obsidian-border pb-6"><Layers size={18} className="text-neon-lime" /> Design Specs</h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest flex items-center gap-2">Typography</label>
-                  <input 
-                    value={localProject?.specs?.typography || ''} 
-                    onChange={(e) => updateField('specs.typography', e.target.value)} 
-                    placeholder="e.g. Inter, Playfair Display"
-                    className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" 
-                  />
-                </div>
-                <div className="space-y-4">
-                  <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest flex items-center gap-2">Color Palette</label>
-                  <div className="flex flex-wrap gap-3">
-                    {localProject?.specs?.colors?.map((color, idx) => (
-                      <div key={idx} className="group relative">
-                        <input 
-                          type="color" 
-                          value={color} 
-                          onChange={(e) => {
-                            const newColors = [...(localProject?.specs?.colors || [])];
-                            newColors[idx] = e.target.value;
-                            updateField('specs.colors', newColors);
-                          }}
-                          className="w-10 h-10 rounded-lg border border-obsidian-border cursor-pointer bg-transparent overflow-hidden"
-                        />
-                        <button 
-                          onClick={() => {
-                            const newColors = localProject?.specs?.colors?.filter((_, i) => i !== idx);
-                            updateField('specs.colors', newColors);
-                          }}
-                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                        >
-                          <X size={8} />
-                        </button>
-                      </div>
-                    ))}
-                    <button 
-                      onClick={() => updateField('specs.colors', [...(localProject?.specs?.colors || []), '#000000'])}
-                      className="w-10 h-10 rounded-lg border border-dashed border-obsidian-border flex items-center justify-center text-obsidian-textMuted hover:border-neon-cyan hover:text-neon-cyan transition-all"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                </div>
-             </div>
-          </div>
 
           {/* Media Section - Full Row Full Screen Experience */}
           <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-8 shadow-2xl space-y-8">

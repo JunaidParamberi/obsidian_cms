@@ -34,6 +34,14 @@ const PortfolioSite: React.FC<PortfolioProps> = ({ projects, experience }) => {
 
   const navItems = ['hero', 'about', 'journey', 'archive', 'contact'];
 
+  const handleNavClick = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveSection(sectionId);
+    }
+  };
+
   return (
     <div className="bg-obsidian-bg min-h-screen text-neon-ice font-sans no-cursor" ref={scrollRef}>
       
@@ -56,15 +64,16 @@ const PortfolioSite: React.FC<PortfolioProps> = ({ projects, experience }) => {
          </div>
          <div className="hidden md:flex gap-8">
            {navItems.map(item => (
-             <a 
-               key={item} 
-               href={`#${item}`} 
-               className="uppercase text-xs tracking-[0.2em] hover:text-neon-cyan transition-colors"
+             <button
+               key={item}
+               type="button"
+               onClick={() => handleNavClick(item)}
+               className="uppercase text-xs tracking-[0.2em] hover:text-neon-cyan transition-colors bg-transparent border-none outline-none cursor-pointer"
                onMouseEnter={() => setCursorVariant('text')}
                onMouseLeave={() => setCursorVariant('default')}
              >
                {item}
-             </a>
+             </button>
            ))}
          </div>
       </nav>

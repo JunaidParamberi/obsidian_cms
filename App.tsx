@@ -36,8 +36,22 @@ import DeployStatus from './components/Deploy/DeployStatus';
 import Login from './components/Auth/Login';
 import ResetPassword from './components/Auth/ResetPassword';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const App: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const viewToPath: Record<ViewState, string> = {
+    dashboard: '/dashboard',
+    overview: '/overview',
+    projects: '/projects',
+    experience: '/experience',
+    clients: '/clients',
+    settings: '/settings',
+    deploy: '/deploy',
+  };
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('obsidian_auth_session') === 'active';
   });
@@ -79,6 +93,21 @@ const App: React.FC = () => {
       setAuthActionCode(oobCode);
     }
   }, []);
+
+  // Sync URL -> current view
+  useEffect(() => {
+    const path = location.pathname || '/dashboard';
+    const found = (Object.entries(viewToPath).find(([, p]) => p === path) || [null, null])[0] as ViewState | null;
+    const nextView: ViewState = found || 'dashboard';
+    setCurrentView(nextView);
+  }, [location.pathname]);
+
+  // Redirect root to dashboard for nicer URLs
+  useEffect(() => {
+    if (location.pathname === '/') {
+      navigate(viewToPath.dashboard, { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   // Sync with Firebase Auth State
   useEffect(() => {
@@ -277,6 +306,7 @@ const App: React.FC = () => {
   };
 
   const requestNav = (view: ViewState) => {
+    const targetPath = viewToPath[view] || viewToPath.dashboard;
     if (isDirty) {
       setPendingView(view);
       triggerConfirm({
@@ -286,12 +316,14 @@ const App: React.FC = () => {
         onConfirm: () => {
           setIsDirty(false);
           setCurrentView(view);
+          navigate(targetPath);
           setMobileMenuOpen(false);
           setPendingView(null);
         }
       });
     } else {
       setCurrentView(view);
+      navigate(targetPath);
       setMobileMenuOpen(false);
     }
   };

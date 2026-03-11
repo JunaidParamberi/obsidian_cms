@@ -34,21 +34,35 @@ export const geminiService = {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Generate a concise case study for a project titled "${title}" in the category "${category}".
-        User Context: "${context}"
-        
-        Requirements:
-        - Description: Max 2 sentences.
-        - Challenge: Short, punchy explanation of the problem.
-        - Execution: Brief overview of the process/tools.
-        - Outcome: Quick summary of the result.
-        - Tags: 6 relevant technical tags.`,
+        contents: `You are helping shape a polished portfolio case study.
+
+Project title: "${title || "n/a"}"
+Project type / role: "${category || "n/a"}"
+Creator context / client brief:
+"${context}"
+
+Tasks:
+- If the current project name is weak or generic, propose a sharper, portfolio-ready title (max 6 words).
+- If the project type/role is unclear, propose a clear category label (e.g. "Product Design", "Creative Technology", "Brand System", "Motion System").
+- Recommend the most appropriate grid system for this project, choosing one label from:
+  "12-Col Responsive", "A4 Print", "Broadcast Safe 16:9", "Flexible Masonry", "Golden Ratio", "Dashboard 12-Col", "No-Grid", "Multi-format".
+- Write:
+  - Description: max 2 sentences, high-level project summary.
+  - Challenge: short, punchy explanation of the core problem.
+  - Execution: brief, tool- and process-focused description.
+  - Result: concise outcome with impact.
+- Suggest 6 sharp technical tags (no sentences, just keywords).
+
+Return a single JSON object only.`,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              title: { type: Type.STRING, description: "Refined project title (max 6 words)" },
+              category: { type: Type.STRING, description: "Refined project category / role label" },
+              gridSystem: { type: Type.STRING, description: "One of the predefined grid system labels" },
               description: { type: Type.STRING, description: "Short project summary (max 2 sentences)" },
               challenge: { type: Type.STRING, description: "Concise challenge text" },
               execution: { type: Type.STRING, description: "Brief execution text" },
