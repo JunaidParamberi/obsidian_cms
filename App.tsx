@@ -406,7 +406,7 @@ const App: React.FC = () => {
             ) : (
               <AnimatePresence mode="wait">
                 <motion.div key={currentView} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="h-full">
-                  {currentView === 'dashboard' && <DashboardOverview projects={projects} experience={experience} />}
+                  {currentView === 'dashboard' && <DashboardOverview projects={projects} experience={experience} clients={clients} />}
                   {currentView === 'projects' && <ProjectEditor projects={projects} onSave={handleSaveProject} onAdd={handleCreateProject} onDelete={handleDeleteProject} onReorder={handleReorderProjects} onDirtyChange={setIsDirty} />}
                   {currentView === 'experience' && <ExperienceManager experience={experience} onUpdate={handleSaveExperience} onDelete={handleDeleteExperience} onDirtyChange={setIsDirty} />}
                   {currentView === 'clients' && <ClientsManager clients={clients} onSave={handleSaveClient} onDelete={handleDeleteClient} />}

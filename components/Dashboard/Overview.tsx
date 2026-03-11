@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { Project, Experience } from '../../types';
+import { Project, Experience, Client } from '../../types';
 import { motion } from 'framer-motion';
 import { 
   BarChart, 
@@ -14,14 +14,17 @@ import {
   Pie,
   Legend
 } from 'recharts';
-import { Activity, Code, Eye, Layers, Image as ImageIcon, Briefcase, Zap, Globe } from 'lucide-react';
+import { Activity, Code, Layers, Image as ImageIcon, Briefcase, Zap, Globe, Users, FolderKanban, History as HistoryIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface OverviewProps {
   projects: Project[];
   experience: Experience[];
+  clients: Client[];
 }
 
-const Overview: React.FC<OverviewProps> = ({ projects, experience }) => {
+const Overview: React.FC<OverviewProps> = ({ projects, experience, clients }) => {
+  const navigate = useNavigate();
   const categoryData = useMemo(() => {
     const counts = projects.reduce((acc, curr) => {
       acc[curr.filterCategory] = (acc[curr.filterCategory] || 0) + 1;
@@ -102,11 +105,50 @@ const Overview: React.FC<OverviewProps> = ({ projects, experience }) => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
+      {/* Quick Actions */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">
+            Quick Actions
+          </p>
+          <p className="text-xs text-obsidian-textMuted">
+            Jump straight into editing live content powered by your Firestore data.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-neon-purple text-black hover:bg-white transition-all"
+          >
+            <FolderKanban size={14} />
+            Projects
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/experience')}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-obsidian-surface border border-obsidian-border text-obsidian-textMuted hover:border-neon-cyan hover:text-neon-cyan transition-all"
+          >
+            <HistoryIcon size={14} />
+            Journey
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/clients')}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-obsidian-surface border border-obsidian-border text-obsidian-textMuted hover:border-neon-lime hover:text-neon-lime transition-all"
+          >
+            <Users size={14} />
+            Partners
+          </button>
+        </div>
+      </div>
+
+      {/* Key Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard 
-          label="Firestore Records" 
+          label="Projects in Vault" 
           value={projects.length} 
-          subValue={`${experience.length} Experience items`} 
+          subValue={`${experience.length} Journey entries · ${clients.length} partners`} 
           icon={Layers} 
           color="text-neon-cyan" 
         />

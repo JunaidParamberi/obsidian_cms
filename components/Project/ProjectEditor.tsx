@@ -74,7 +74,7 @@ const ProjectCardItem: React.FC<{
         <img 
           src={project.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800'} 
           onLoad={() => setImageLoaded(true)} 
-          className={`w-full h-full object-cover transition-all duration-700 ${imageLoaded ? 'opacity-40 group-hover:opacity-100' : 'opacity-0'}`} 
+          className={`w-full h-full object-cover transition-all duration-700 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} 
         />
         <div 
           onPointerDown={(e) => { e.stopPropagation(); dragControls.start(e); }} 
@@ -133,6 +133,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showAIPrompt, setShowAIPrompt] = useState(false);
   const [aiPromptValue, setAIPromptValue] = useState('');
+  const [fontSuggestions, setFontSuggestions] = useState<string[]>([]);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const originalProject = useMemo(() => projects.find(p => p.id === selectedId) || null, [selectedId, projects]);
@@ -397,13 +398,67 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({ projects, onSave, onAdd, 
               </div>
               
               <div className="space-y-2">
-                <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">Typography / Font</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-obsidian-textMuted uppercase font-mono tracking-widest">
+                    Typography / Font
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isAILoading === 'fonts'}
+                    onClick={async () => {
+                      if (!localProject) return;
+                      setIsAILoading('fonts');
+                      try {
+                        const base = localProject.specs?.typography || '';
+                        const context = [
+                          localProject.title,
+                          localProject.category,
+                          localProject.filterCategory,
+                          base
+                        ].filter(Boolean).join(' · ');
+                        const result = await geminiService.generateText(
+                          `You are a font librarian.\n` +
+                          `Project context: "${context}".\n` +
+                          `Suggest 5 real, modern typefaces that fit this project.\n` +
+                          `Return ONLY a comma-separated list of font family names (no extra words).`
+                        );
+                        const candidates = result
+                          .split(',')
+                          .map(s => s.trim())
+                          .filter(Boolean);
+                        setFontSuggestions(candidates.slice(0, 5));
+                        ui?.notify('AI Font Suggestions Ready');
+                      } catch {
+                        ui?.notify('Font suggestion failed', 'error');
+                      } finally {
+                        setIsAILoading(null);
+                      }
+                    }}
+                    className="text-[9px] text-neon-purple hover:text-white uppercase font-black tracking-widest flex items-center gap-1 transition-all disabled:opacity-50"
+                  >
+                    <Sparkles size={11} /> AI Font
+                  </button>
+                </div>
                 <input 
                   value={localProject?.specs?.typography || ''} 
                   onChange={(e) => updateField('specs.typography', e.target.value)} 
-                  placeholder="e.g. Inter, Playfair Display"
+                  placeholder="e.g. Inter, Space Grotesk, Playfair Display"
                   className="w-full bg-obsidian-bg border border-obsidian-border rounded-xl p-4 text-white text-sm focus:border-neon-cyan outline-none transition-all" 
                 />
+                {fontSuggestions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {fontSuggestions.map((font) => (
+                      <button
+                        key={font}
+                        type="button"
+                        onClick={() => updateField('specs.typography', font)}
+                        className="px-3 py-1.5 rounded-full border border-obsidian-border text-[10px] text-obsidian-textMuted hover:border-neon-cyan hover:text-neon-cyan bg-obsidian-bg transition-all"
+                      >
+                        {font}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

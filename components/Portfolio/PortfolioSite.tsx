@@ -1,15 +1,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, Experience } from '../../types';
+import { Project, Experience, Overview } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowDown, Mail, MapPin, Smartphone, MoveUpRight, X, Play, Palette, Layers, Cpu } from 'lucide-react';
 
 interface PortfolioProps {
   projects: Project[];
   experience: Experience[];
+  overview?: Overview | null;
 }
 
-const PortfolioSite: React.FC<PortfolioProps> = ({ projects, experience }) => {
+const PortfolioSite: React.FC<PortfolioProps> = ({ projects, experience, overview }) => {
   const [activeSection, setActiveSection] = useState('hero');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const scrollRef = useRef(null);
@@ -93,7 +94,7 @@ const PortfolioSite: React.FC<PortfolioProps> = ({ projects, experience }) => {
               </motion.h1>
            </div>
            <div className="col-span-12 md:col-span-2 flex flex-col justify-end pb-4 border-l border-obsidian-border pl-8">
-              <p className="text-neon-cyan text-sm font-mono mb-8">Role: Creative Technologist</p>
+              <p className="text-neon-cyan text-sm font-mono mb-8">Role: {overview?.subtitle || 'Creative Technologist'}</p>
               <ul className="space-y-2 text-obsidian-textMuted text-sm">
                 <li>Graphic Designer</li>
                 <li>Photographer</li>
@@ -115,27 +116,48 @@ const PortfolioSite: React.FC<PortfolioProps> = ({ projects, experience }) => {
       <section id="about" className="min-h-screen flex items-center px-8 border-t border-obsidian-border">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 max-w-7xl mx-auto">
           <div>
-            <h2 className="text-4xl font-display italic text-neon-purple mb-8">The Architect of Aesthetics</h2>
-            <p className="text-xl leading-relaxed text-obsidian-text mb-8">
-              A 6+ year creative professional specializing in branding, photography, and motion graphics. 
-              My work sits at the intersection of technical precision and artistic fluidity.
-            </p>
-            <p className="text-lg text-obsidian-textMuted mb-12">
-              Delivering end-to-end visual solutions from concept to post-production.
-            </p>
-            
-            <div className="grid grid-cols-3 gap-4">
+            <h2 className="text-4xl font-display italic text-neon-purple mb-8">
+              {overview?.title || 'The Architect of Aesthetics'}
+            </h2>
+            {overview?.description ? (
+              <div className="text-xl leading-relaxed text-obsidian-text mb-8 whitespace-pre-line">
+                {overview.description}
+              </div>
+            ) : (
+              <>
+                <p className="text-xl leading-relaxed text-obsidian-text mb-8">
+                  A 6+ year creative professional specializing in branding, photography, and motion graphics.
+                  My work sits at the intersection of technical precision and artistic fluidity.
+                </p>
+                <p className="text-lg text-obsidian-textMuted mb-12">
+                  Delivering end-to-end visual solutions from concept to post-production.
+                </p>
+              </>
+            )}
+
+            {overview?.stats && overview.stats.length > 0 && (
+              <div className="flex flex-wrap gap-4 mb-8">
+                {overview.stats.map((s, i) => (
+                  <div key={i} className="px-4 py-2 border border-obsidian-border bg-obsidian-surface rounded-lg">
+                    <span className="text-[10px] text-obsidian-textMuted font-mono uppercase tracking-wider block">{s.label}</span>
+                    <span className="text-lg font-bold text-neon-cyan">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div className="p-4 border border-obsidian-border bg-obsidian-surface">
-                 <Palette className="mb-2 text-neon-cyan" />
-                 <div className="text-sm font-bold">Brand Identity</div>
+                <Palette className="mb-2 text-neon-cyan" />
+                <div className="text-sm font-bold">Brand Identity</div>
               </div>
               <div className="p-4 border border-obsidian-border bg-obsidian-surface">
-                 <Layers className="mb-2 text-neon-purple" />
-                 <div className="text-sm font-bold">Motion GFX</div>
+                <Layers className="mb-2 text-neon-purple" />
+                <div className="text-sm font-bold">Motion GFX</div>
               </div>
               <div className="p-4 border border-obsidian-border bg-obsidian-surface">
-                 <Cpu className="mb-2 text-neon-lime" />
-                 <div className="text-sm font-bold">Dev/Code</div>
+                <Cpu className="mb-2 text-neon-lime" />
+                <div className="text-sm font-bold">Dev/Code</div>
               </div>
             </div>
           </div>
